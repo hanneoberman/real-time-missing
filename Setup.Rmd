@@ -17,7 +17,7 @@ Our sample will include at least these 5 variables too.
 
 **Q: Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model?**
 
-```{r setup, message = FALSE, warning = FALSE, include = FALSE}
+```{r set-up, message = FALSE, warning = FALSE, include = FALSE}
 # environment
 library("mvtnorm")
 library("dplyr")
@@ -30,8 +30,18 @@ source("./R/DGM.R")
 ```{r}
 # let's generate some data
 set.seed(11)
-n <- 100
+n <- 500
 dat <- sample_predictors(n)
+dat <- dat %>% cbind(Y = compute_outcome(.), .)
 glimpse(dat)
+
+# test
+mod1 <- glm(Y ~ ., family = "binomial", data = dat)
+summary(mod1)
+y_pred <- round(mod1$fitted.values)
+mean(dat$Y==y_pred)
+prob <- predict(mod1)
+dat <- cbind(dat, prob=prob)
+pROC::roc(Y~prob, data = dat)
 ```
 
