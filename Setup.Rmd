@@ -10,12 +10,9 @@ output:
 We will use a prediction model with: 
 
 - 1 binary outcome ($Y$),
-- 2 binary predictors ($X_1$, $X_2$),
-- 2 continuous predictors ($X_3$, $X_4$).
+- 10 continuous predictors ($X_1$, $X_2$, ..., $X_{10}$).
 
-Our sample will include at least these 5 variables too.
-
-**Q: Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model?**
+Our sample will include at least these variables. **Q:** Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model?
 
 ```{r setup, message = FALSE, warning = FALSE, include = FALSE}
 # environment
@@ -31,25 +28,26 @@ source("./R/DGM.R")
 
 
 ```{r}
-# let's generate some data, using these parameters
+# let's generate some data
 set.seed(11)
 n <- 10000
 
-# we'll the SMART data to define the relations between predictors
+# we'll use the SMART data to define the relations between predictors
 ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = TRUE)
 
-# generate the data
-dat <- sample_predictors(n)
-dat <- dat %>% cbind(Y = compute_outcome(.), .)
+# create the data
+dat <- generate_sample(n, varcov)
 glimpse(dat)
 
-# test
+# check data characteristics
+(prevalence <- mean(dat$Y))
+
+# fit prediction model 
 mod1 <- glm(Y ~ ., family = "binomial", data = dat)
-summary(mod1)
-y_pred <- round(mod1$fitted.values)
-mean(dat$Y==y_pred)
-prob <- predict(mod1)
-dat <- cbind(dat, prob=prob)
-pROC::roc(Y~prob, data = dat)
+
+# check model characteristics
+dat <- cbind(dat, prob=predict(mod1))
+(auc <- pROC::roc(Y~prob, data = dat))
 ```
 
+The prevalence of the outcome is `r prevalence`. The C index/AUC of the model is `r auc$auc`. **Q:** What other charastericsics do we need to check?
