@@ -30,7 +30,7 @@ source("./R/DGM.R")
 ```{r}
 # let's generate some data
 set.seed(11)
-n <- 500
+n <- 10000
 dat <- sample_predictors(n)
 dat <- dat %>% cbind(Y = compute_outcome(.), .)
 glimpse(dat)

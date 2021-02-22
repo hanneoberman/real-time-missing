@@ -207,15 +207,59 @@ summary {
 <p><strong>Q: Do we want extra ‘support’ variables (<span class="math inline">\(Z\)</span>) in our sample that are not included in the prediction model?</strong></p>
 <pre class="r"><code># let&#39;s generate some data
 set.seed(11)
-n &lt;- 100
+n &lt;- 500
 dat &lt;- sample_predictors(n)
+dat &lt;- dat %&gt;% cbind(Y = compute_outcome(.), .)
 glimpse(dat)</code></pre>
-<pre><code>## Rows: 100
-## Columns: 4
-## $ X1 &lt;int&gt; 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1...
-## $ X2 &lt;int&gt; 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0...
+<pre><code>## Rows: 500
+## Columns: 5
+## $ Y  &lt;int&gt; 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1...
+## $ X1 &lt;int&gt; 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1...
+## $ X2 &lt;int&gt; 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0...
 ## $ X3 &lt;dbl&gt; -1.8174981, 1.3427308, -1.0262067, -1.2027491, -0.6145743, -0.36...
 ## $ X4 &lt;dbl&gt; -1.72044343, 0.91169948, -0.63167110, -0.37060274, -0.71667895, ...</code></pre>
+<pre class="r"><code># test
+mod1 &lt;- glm(Y ~ ., family = &quot;binomial&quot;, data = dat)
+summary(mod1)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = Y ~ ., family = &quot;binomial&quot;, data = dat)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.7747  -1.1533   0.7175   0.9390   1.3875  
+## 
+## Coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -0.25367    0.16643  -1.524   0.1275    
+## X1           1.04736    0.19289   5.430 5.64e-08 ***
+## X2           0.44926    0.19499   2.304   0.0212 *  
+## X3          -0.08255    0.11073  -0.746   0.4559    
+## X4           0.06960    0.11939   0.583   0.5599    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 665.99  on 499  degrees of freedom
+## Residual deviance: 630.08  on 495  degrees of freedom
+## AIC: 640.08
+## 
+## Number of Fisher Scoring iterations: 4</code></pre>
+<pre class="r"><code>y_pred &lt;- round(mod1$fitted.values)
+mean(dat$Y==y_pred)</code></pre>
+<pre><code>## [1] 0.656</code></pre>
+<pre class="r"><code>prob &lt;- predict(mod1)
+dat &lt;- cbind(dat, prob=prob)
+pROC::roc(Y~prob, data = dat)</code></pre>
+<pre><code>## Setting levels: control = 0, case = 1</code></pre>
+<pre><code>## Setting direction: controls &lt; cases</code></pre>
+<pre><code>## 
+## Call:
+## roc.formula(formula = Y ~ prob, data = dat)
+## 
+## Data: prob in 192 controls (Y 0) &lt; 308 cases (Y 1).
+## Area under the curve: 0.6541</code></pre>
 </div>
 
 
