@@ -1,20 +1,19 @@
 ---
-title: "Real-time imputation SIG project"
+title: "SIG Project Real-Time Imputation"
+author: "Steven Nijman, Thomas Debray, Maarten van Smeden, Gerko Vink, Hanne Oberman"
 output:
-  html_document:
+ html_document:
     df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
 ---
 
-Script by Hanne Oberman
+# Aim
+
+This document contain the set-up of our SIG project titled "An evaluation of 'real-time' missing data handling in machine learning and prevailing statistical models". The aim is to compare different strategies for developing prediction models that can handle the presence of missing values real time in a single patient.
 
 # Data Generating Mechanism
-
-We will use a prediction model with: 
-
-- 1 binary outcome ($Y$),
-- 10 continuous predictors ($X_1$, $X_2$, ..., $X_{10}$).
-
-Our sample will include at least these variables. **Q:** Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model?
 
 ```{r setup, message = FALSE, warning = FALSE, include = FALSE}
 # environment
@@ -31,17 +30,44 @@ load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
 source("./R/DGM.R") #data generating mechanism
 ```
 
+We will use a prediction model with: 
 
-```{r}
-# let's generate some data
-set.seed(11)
-n <- 10000
+- 1 binary outcome ($Y$),
+- 10 continuous predictors ($X_1$, $X_2$, ..., $X_{10}$).
 
+### Q: Do we need categorical predictors as well?
+
+Our sample will include at least these 11 variables, with a sample size of 10.000 cases. 
+
+### Q: Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model?
+
+Initially, we were going to use the SMART data as the basis for our predictor space. But this would result in the same limitations as described in Nijman et al. (2021; i.e., low correlations between predictor variables). 
+
+These correlations between variables from the SMART dataset are visualized below. 
+
+
+```{r SMART}
 # we'll use the SMART data to define the relations between predictors
 # the variance-covariance matrix is stored in the object varcov
 ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = TRUE)
+```
 
-# create the data
+So instead, we'll create our own.
+
+
+```{r varcov}
+# create a variance-covariance matrix with p predictors
+set.seed(11)
+p <- 10
+sigma <- diag(p)
+sigma[lower.tri(sigma)] <- sigma[upper.tri(sigma)] <- runif(p*(p-1)/2, -.9, .9)
+ggcorrplot::ggcorrplot(cov2cor(sigma), hc.order = TRUE, type = "lower", lab = TRUE)
+```
+
+
+```{r}
+# let's generate some data (note that this part is still based on the SMART data predictor space!)
+n <- 10000
 dat <- generate_sample(n, varcov)
 glimpse(dat)
 
@@ -49,7 +75,16 @@ glimpse(dat)
 out <- check_characteristics(dat)
 ```
 
-The prevalence of the outcome is `r out$prevalence`. The C index/AUC of the model is `r out$auc`. **Q:** What other characteristics do we need to check?
+The prevalence of the outcome is `r out$prevalence`. The C index/AUC of the model is `r out$auc`. 
+
+### Q: What other characteristics do we need to check to see if the data suits our purpose?
+
+We'll add interaction terms between the first predictor and all others to create a need for ML models.
+
+### Q: Is 10 interactions enough to make the data more realistic/complex?
+
+### Q: Are additional non-linear effects needed (e.g., log-transformed predictors)?
+
 
 ```{r}
 # now add some interaction terms (actually 1 squared term, 9 interactions)
@@ -60,7 +95,14 @@ out <- check_characteristics(dat)
 
 The prevalence of the outcome now is `r out$prevalence`. The C index/AUC of the model is `r out$auc`.
 
-The next step is to ampute the complete set using several missing data patterns. **Q:** Should all missingness be multivar?
+The next step is to ampute the complete set using several missing data patterns. Note that this part of the simulation pipeline is still very much under construction. 
+
+### Q: Should the missing data pattern be equal for all three missing data mechanisms?
+
+### Q: Should the outcome variable contain missingness? It won't be observed anyways, right?
+
+### Q: What is meant with MAR situation 1 and 2 in the Word doc from our last meeting?
+
 
 ```{r}
 # create MCAR missingness
@@ -85,7 +127,7 @@ md <- mice::md.pattern(MNAR$amp)
 ```
 
 
-# Prediction Models
+# Estimands
 
 
 
