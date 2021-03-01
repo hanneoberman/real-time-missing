@@ -18,6 +18,7 @@ Our sample will include at least these variables. **Q:** Do we want extra 'suppo
 # environment
 library("mvtnorm")
 library("dplyr")
+library("pROC")
 
 # data
 load("./Data/varcov.RData")
@@ -39,15 +40,26 @@ ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = T
 dat <- generate_sample(n, varcov)
 glimpse(dat)
 
-# check data characteristics
+# check characteristics
 (prevalence <- mean(dat$Y))
 
 # fit prediction model 
-mod1 <- glm(Y ~ ., family = "binomial", data = dat)
+mod <- glm(Y ~ ., family = "binomial", data = dat)
 
 # check model characteristics
-dat <- cbind(dat, prob=predict(mod1))
+(auc <- pROC::roc(Y~prob, data = cbind(dat, prob=predict(mod))))
+```
+
+The prevalence of the outcome is `r round(prevalence, 2)`. The C index/AUC of the model is `r round(auc$auc, 2)`. **Q:** What other characteristics do we need to check?
+
+```{r}
+# now add some interaction terms (actually 1 squared term, 9 interactions)
+dat <- generate_sample(n, varcov, interaction = TRUE)
+# check the same characteristics
+(prevalence <- mean(dat$Y))
+mod <- glm(Y ~ ., family = "binomial", data = dat)
+dat <- cbind(dat, prob=predict(mod))
 (auc <- pROC::roc(Y~prob, data = dat))
 ```
 
-The prevalence of the outcome is `r prevalence`. The C index/AUC of the model is `r auc$auc`. **Q:** What other charastericsics do we need to check?
+The prevalence of the outcome now is `r round(prevalence, 2)`. The C index/AUC of the model is `r round(auc$auc, 2)`.
