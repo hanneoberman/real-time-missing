@@ -18,15 +18,17 @@ Our sample will include at least these variables. **Q:** Do we want extra 'suppo
 
 ```{r setup, message = FALSE, warning = FALSE, include = FALSE}
 # environment
-library("mvtnorm")
-library("dplyr")
-library("pROC")
+library("dplyr") #for the pipe operator
+library("ggcorrplot") #for easy visualization of correlations
+library("mvtnorm") #for multivariate normal distributions
+library("pROC") #for easy calculation of the auc
+library("mice") #for missing data stuffs
 
 # data
-load("./Data/varcov.RData")
+load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
 
 # functions
-source("./R/DGM.R")
+source("./R/DGM.R") #data generating mechanism
 ```
 
 
@@ -36,6 +38,7 @@ set.seed(11)
 n <- 10000
 
 # we'll use the SMART data to define the relations between predictors
+# the variance-covariance matrix is stored in the object varcov
 ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = TRUE)
 
 # create the data
@@ -57,8 +60,32 @@ out <- check_characteristics(dat)
 
 The prevalence of the outcome now is `r out$prevalence`. The C index/AUC of the model is `r out$auc`.
 
+The next step is to ampute the complete set using several missing data patterns. **Q:** Should all missingness be multivar?
 
-# Prediction Model
+```{r}
+# create MCAR missingness
+MCAR <- dat %>% 
+  mice::ampute(mech = "MCAR")
+md <- mice::md.pattern(MCAR$amp)
+
+# create MAR missingness
+MAR <- dat %>% 
+  mice::ampute(mech = "MAR")
+md <- mice::md.pattern(MAR$amp)
+
+# create MNAR missingness for the strongest predictor
+dat %>% 
+  glm(Y ~ ., family = "binomial", data = .) %>% 
+  broom::tidy() %>% 
+  dplyr::arrange(desc(abs(estimate)))
+# the strongest predictor currently is X4
+MNAR <- dat %>% 
+  mice::ampute(mech = "MNAR")
+md <- mice::md.pattern(MNAR$amp)
+```
+
+
+# Prediction Models
 
 
 
