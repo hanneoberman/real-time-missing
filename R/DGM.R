@@ -26,8 +26,8 @@ check_characteristics <- function(dataset){
   # fit prediction model 
   mod <- glm(Y ~ ., family = "binomial", data = dataset)
   # c index/auc
-  auc <- pROC::roc(Y~prob, data = cbind(dat, prob=predict(mod)))
+  auc <- pROC::roc(Y~prob, data = cbind(dat, prob=predict(mod)), quiet = TRUE)$auc
   # output
-  return(list(prevalence = round(prevalence, 2),
-              auc = round(auc$auc), 2))
+  return(data.frame(prevalence = round(prevalence, 2),
+              auc = round(auc, 2)))
 }

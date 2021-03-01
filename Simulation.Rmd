@@ -5,6 +5,8 @@ output:
     df_print: paged
 ---
 
+Script by Hanne Oberman
+
 # Data Generating Mechanism
 
 We will use a prediction model with: 
@@ -40,26 +42,23 @@ ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = T
 dat <- generate_sample(n, varcov)
 glimpse(dat)
 
-# check characteristics
-(prevalence <- mean(dat$Y))
-
-# fit prediction model 
-mod <- glm(Y ~ ., family = "binomial", data = dat)
-
-# check model characteristics
-(auc <- pROC::roc(Y~prob, data = cbind(dat, prob=predict(mod))))
+# check prevalence and auc
+out <- check_characteristics(dat)
 ```
 
-The prevalence of the outcome is `r round(prevalence, 2)`. The C index/AUC of the model is `r round(auc$auc, 2)`. **Q:** What other characteristics do we need to check?
+The prevalence of the outcome is `r out$prevalence`. The C index/AUC of the model is `r out$auc`. **Q:** What other characteristics do we need to check?
 
 ```{r}
 # now add some interaction terms (actually 1 squared term, 9 interactions)
 dat <- generate_sample(n, varcov, interaction = TRUE)
-# check the same characteristics
-(prevalence <- mean(dat$Y))
-mod <- glm(Y ~ ., family = "binomial", data = dat)
-dat <- cbind(dat, prob=predict(mod))
-(auc <- pROC::roc(Y~prob, data = dat))
+# check prevalence and auc
+out <- check_characteristics(dat)
 ```
 
-The prevalence of the outcome now is `r round(prevalence, 2)`. The C index/AUC of the model is `r round(auc$auc, 2)`.
+The prevalence of the outcome now is `r out$prevalence`. The C index/AUC of the model is `r out$auc`.
+
+
+# Prediction Model
+
+
+

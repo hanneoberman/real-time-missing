@@ -195,6 +195,7 @@ summary {
 </div>
 
 
+<p>Script by Hanne Oberman</p>
 <div id="data-generating-mechanism" class="section level1">
 <h1>Data Generating Mechanism</h1>
 <p>We will use a prediction model with:</p>
@@ -226,40 +227,17 @@ glimpse(dat)</code></pre>
 ## $ X8  &lt;dbl&gt; 8.242689, 11.676864, -11.027502, 21.540636, 17.321827, 7.108085...
 ## $ X9  &lt;dbl&gt; -0.07164990, -0.68734841, -0.32177525, -0.85645295, 0.87385476,...
 ## $ X10 &lt;dbl&gt; -6.7182546, -4.3890541, -6.3940438, -2.7097867, 0.9069316, 1.26...</code></pre>
-<pre class="r"><code># check characteristics
-(prevalence &lt;- mean(dat$Y))</code></pre>
-<pre><code>## [1] 0.1643</code></pre>
-<pre class="r"><code># fit prediction model 
-mod &lt;- glm(Y ~ ., family = &quot;binomial&quot;, data = dat)
-
-# check model characteristics
-(auc &lt;- pROC::roc(Y~prob, data = cbind(dat, prob=predict(mod))))</code></pre>
-<pre><code>## Setting levels: control = 0, case = 1</code></pre>
-<pre><code>## Setting direction: controls &lt; cases</code></pre>
-<pre><code>## 
-## Call:
-## roc.formula(formula = Y ~ prob, data = cbind(dat, prob = predict(mod)))
-## 
-## Data: prob in 8357 controls (Y 0) &lt; 1643 cases (Y 1).
-## Area under the curve: 0.6327</code></pre>
+<pre class="r"><code># check prevalence and auc
+out &lt;- check_characteristics(dat)</code></pre>
 <p>The prevalence of the outcome is 0.16. The C index/AUC of the model is 0.63. <strong>Q:</strong> What other characteristics do we need to check?</p>
 <pre class="r"><code># now add some interaction terms (actually 1 squared term, 9 interactions)
 dat &lt;- generate_sample(n, varcov, interaction = TRUE)
-# check the same characteristics
-(prevalence &lt;- mean(dat$Y))</code></pre>
-<pre><code>## [1] 0.1126</code></pre>
-<pre class="r"><code>mod &lt;- glm(Y ~ ., family = &quot;binomial&quot;, data = dat)
-dat &lt;- cbind(dat, prob=predict(mod))
-(auc &lt;- pROC::roc(Y~prob, data = dat))</code></pre>
-<pre><code>## Setting levels: control = 0, case = 1</code></pre>
-<pre><code>## Setting direction: controls &lt; cases</code></pre>
-<pre><code>## 
-## Call:
-## roc.formula(formula = Y ~ prob, data = dat)
-## 
-## Data: prob in 8874 controls (Y 0) &lt; 1126 cases (Y 1).
-## Area under the curve: 0.5476</code></pre>
+# check prevalence and auc
+out &lt;- check_characteristics(dat)</code></pre>
 <p>The prevalence of the outcome now is 0.11. The C index/AUC of the model is 0.55.</p>
+</div>
+<div id="prediction-model" class="section level1">
+<h1>Prediction Model</h1>
 </div>
 
 
