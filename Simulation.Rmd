@@ -1,12 +1,6 @@
 ---
 title: "SIG Project Real-Time Imputation"
 author: "Steven Nijman, Thomas Debray, Maarten van Smeden, Gerko Vink, Hanne Oberman"
-output:
- html_document:
-    df_print: paged
-    toc: yes
-  pdf_document:
-    toc: yes
 ---
 
 # Aim
@@ -35,11 +29,15 @@ We will use a prediction model with:
 - 1 binary outcome ($Y$),
 - 10 continuous predictors ($X_1$, $X_2$, ..., $X_{10}$).
 
-### Q: Do we need categorical predictors as well?
+### Q: Do we need categorical predictors as well? 
+
+No, not necessary. But if it's not too complex, add them later. Leave them for now. 
 
 Our sample will include at least these 11 variables, with a sample size of 10.000 cases. 
 
 ### Q: Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model?
+
+Not yet. For now we want the ML and regression models to have the same info.
 
 Initially, we were going to use the SMART data as the basis for our predictor space. But this would result in the same limitations as described in Nijman et al. (2021; i.e., low correlations between predictor variables). 
 
@@ -52,7 +50,7 @@ These correlations between variables from the SMART dataset are visualized below
 ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = TRUE)
 ```
 
-So instead, we'll create our own.
+So instead, we'll create our own. --> Note: later add more varcovs
 
 
 ```{r varcov}
@@ -60,7 +58,7 @@ So instead, we'll create our own.
 set.seed(11)
 p <- 10
 sigma <- diag(p)
-sigma[lower.tri(sigma)] <- sigma[upper.tri(sigma)] <- runif(p*(p-1)/2, -.9, .9)
+sigma[lower.tri(sigma)] <- sigma[upper.tri(sigma)] <- runif(p*(p-1)/2, -.9, .9) #now too extreme, rather make them 0.2-0.4 or have different options
 ggcorrplot::ggcorrplot(cov2cor(sigma), hc.order = TRUE, type = "lower", lab = TRUE)
 ```
 
@@ -75,13 +73,17 @@ glimpse(dat)
 out <- check_characteristics(dat)
 ```
 
-The prevalence of the outcome is `r out$prevalence`. The C index/AUC of the model is `r out$auc`. 
+The prevalence of the outcome is `r out$prevalence`. The C index/AUC of the model is `r out$auc`. Note: make the C index 0.75.
 
 ### Q: What other characteristics do we need to check to see if the data suits our purpose?
+
+With tree based methods
 
 We'll add interaction terms between the first predictor and all others to create a need for ML models.
 
 ### Q: Is 10 interactions enough to make the data more realistic/complex?
+
+Yes, make them a factor 10 or even 20 smaller than main effects. Add a spline effect as well.
 
 ### Q: Are additional non-linear effects needed (e.g., log-transformed predictors)?
 
@@ -99,10 +101,18 @@ The next step is to ampute the complete set using several missing data patterns.
 
 ### Q: Should the missing data pattern be equal for all three missing data mechanisms?
 
+Some variables are missing more often than others. For example, lab measures are missing more often.
+Create 3 or 4 patterns where joint missingness occurs in 3 variables.
+
+50-75% of the rows has at least one of the sets of 3 variables missing.
+
 ### Q: Should the outcome variable contain missingness? It won't be observed anyways, right?
+
+Indeed, it will be predicted.
 
 ### Q: What is meant with MAR situation 1 and 2 in the Word doc from our last meeting?
 
+Not relevant anymore.
 
 ```{r}
 # create MCAR missingness
@@ -129,5 +139,13 @@ md <- mice::md.pattern(MNAR$amp)
 
 # Estimands
 
+discr (c of auc) en calibr: interc en slope
+mse van de predicties
+verschil tussen voorspelde uitkomst en ware uitkomst (vanwege simulatie hier nu mogelijk)
 
+sensitiviteit en specificiteit niet belangrijk hier
 
+# Afspraken
+
+- elke twee weken
+- vast moment in de week
