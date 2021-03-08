@@ -31,13 +31,13 @@ We will use a prediction model with:
 
 ### Q: Do we need categorical predictors as well? 
 
-No, not necessary. But if it's not too complex, add them later. Leave them for now. 
+--> A: No, not necessary. But if it's not too complex, add them later. Leave them for now. 
 
 Our sample will include at least these 11 variables, with a sample size of 10.000 cases. 
 
 ### Q: Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model?
 
-Not yet. For now we want the ML and regression models to have the same info.
+--> A: Not yet. For now we want the ML and regression models to have the same info.
 
 Initially, we were going to use the SMART data as the basis for our predictor space. But this would result in the same limitations as described in Nijman et al. (2021; i.e., low correlations between predictor variables). 
 
@@ -50,7 +50,7 @@ These correlations between variables from the SMART dataset are visualized below
 ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = TRUE)
 ```
 
-So instead, we'll create our own. --> Note: later add more varcovs
+So instead, we'll create our own. --> Note: maybe add more variance-covariance matrices for sensitivity analyses
 
 
 ```{r varcov}
@@ -77,16 +77,17 @@ The prevalence of the outcome is `r out$prevalence`. The C index/AUC of the mode
 
 ### Q: What other characteristics do we need to check to see if the data suits our purpose?
 
-With tree based methods
+--> A: With tree based methods, we'll need more interesting interactions
 
-We'll add interaction terms between the first predictor and all others to create a need for ML models.
+We added interaction terms between the first predictor and all others to create a need for ML models.
 
 ### Q: Is 10 interactions enough to make the data more realistic/complex?
 
-Yes, make them a factor 10 or even 20 smaller than main effects. Add a spline effect as well.
+--> A: Yes, make them a factor 10 or even 20 smaller than main effects. Add a spline effect as well.
 
 ### Q: Are additional non-linear effects needed (e.g., log-transformed predictors)?
 
+--> A: Yes.
 
 ```{r}
 # now add some interaction terms (actually 1 squared term, 9 interactions)
@@ -101,29 +102,26 @@ The next step is to ampute the complete set using several missing data patterns.
 
 ### Q: Should the missing data pattern be equal for all three missing data mechanisms?
 
-Some variables are missing more often than others. For example, lab measures are missing more often.
-Create 3 or 4 patterns where joint missingness occurs in 3 variables.
-
-50-75% of the rows has at least one of the sets of 3 variables missing.
+--> A: Yes. Some variables are missing more often than others. For example, lab measures are missing more often. We'll create 3 or 4 patterns where joint missingness occurs in 3 variables. 50-75% of the rows has at least one of the sets of 3 variables missing.
 
 ### Q: Should the outcome variable contain missingness? It won't be observed anyways, right?
 
-Indeed, it will be predicted.
+--> A: Indeed, it will be predicted.
 
 ### Q: What is meant with MAR situation 1 and 2 in the Word doc from our last meeting?
 
-Not relevant anymore.
+--> A: Not relevant anymore.
 
 ```{r}
 # create MCAR missingness
 MCAR <- dat %>% 
   mice::ampute(mech = "MCAR")
-md <- mice::md.pattern(MCAR$amp)
+MCARmd <- mice::md.pattern(MCAR$amp)
 
 # create MAR missingness
 MAR <- dat %>% 
   mice::ampute(mech = "MAR")
-md <- mice::md.pattern(MAR$amp)
+MARmd <- mice::md.pattern(MAR$amp)
 
 # create MNAR missingness for the strongest predictor
 dat %>% 
@@ -133,19 +131,22 @@ dat %>%
 # the strongest predictor currently is X4
 MNAR <- dat %>% 
   mice::ampute(mech = "MNAR")
-md <- mice::md.pattern(MNAR$amp)
+MNARmd <- mice::md.pattern(MNAR$amp)
 ```
 
 
 # Estimands
 
-discr (c of auc) en calibr: interc en slope
-mse van de predicties
-verschil tussen voorspelde uitkomst en ware uitkomst (vanwege simulatie hier nu mogelijk)
+<!-- discr (c of auc) en calibr: interc en slope -->
+<!-- mse van de predicties -->
+<!-- verschil tussen voorspelde uitkomst en ware uitkomst (vanwege simulatie hier nu mogelijk) -->
 
-sensitiviteit en specificiteit niet belangrijk hier
+<!-- sensitiviteit en specificiteit niet belangrijk hier -->
 
-# Afspraken
 
-- elke twee weken
-- vast moment in de week
+# Planning
+
+- Steven and Hanne meet every week
+
+- The entire team meets every other week, at a fixed moment in the week (e.g., wednesday afternoon)
+
