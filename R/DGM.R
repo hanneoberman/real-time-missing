@@ -8,7 +8,7 @@ generate_sample <-
       mvtnorm::rmvnorm(n = sample_size, sigma = covariance_matrix)
     # compute the outcome based on linear function of predictors and error term
     betas <- runif(nrow(covariance_matrix), -1, 1)
-    lin_pred <- dat %*% betas - 100 + rnorm(sample_size, sd = 100)
+    lin_pred <- dat %*% betas - 20 + rnorm(sample_size, sd = 20)
     if (interaction) {
       more_betas <- runif(10, -2, 2)
       lin_pred <- lin_pred - dat %*% more_betas * dat[, 1]

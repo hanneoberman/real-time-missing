@@ -55,18 +55,23 @@ So instead, we'll create our own. --> Note: maybe add more variance-covariance m
 
 ```{r varcov}
 # create a variance-covariance matrix with p predictors
-set.seed(11)
+set.seed(123)
 p <- 10
+betas <- rnorm(p*(p-1)/2, 0, 0.1)
 sigma <- diag(p)
-sigma[lower.tri(sigma)] <- sigma[upper.tri(sigma)] <- runif(p*(p-1)/2, -.9, .9) #now too extreme, rather make them 0.2-0.4 or have different options
-ggcorrplot::ggcorrplot(cov2cor(sigma), hc.order = TRUE, type = "lower", lab = TRUE)
+sigma[upper.tri(sigma)] <- betas
+sigma[lower.tri(sigma)]  <- t(sigma)[lower.tri(sigma)]
+Sigma <- t(sigma) %*% sigma
+isSymmetric(Sigma)
+ggcorrplot::ggcorrplot(cov2cor(Sigma), type = "lower", lab = TRUE)
 ```
 
 
 ```{r}
 # let's generate some data (note that this part is still based on the SMART data predictor space!)
 n <- 10000
-dat <- generate_sample(n, varcov)
+set.seed(123)
+dat <- generate_sample(n, Sigma)
 glimpse(dat)
 
 # check prevalence and auc
