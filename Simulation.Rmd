@@ -105,6 +105,15 @@ The prevalence of the outcome now is `r out$prevalence`. The C index/AUC of the 
 
 The next step is to ampute the complete set using several missing data patterns. Note that this part of the simulation pipeline is still very much under construction. 
 
+In the original proposal, the missing data mechanisms were defined as:
+
+-	MCAR strategy: for all hold-out patients, the same variable(s) are missing. We will set probability of missing to less than 100%, e.g. 50%.
+
+-	MAR strategy: different variables are missing across the hold-out patients. The probability of missingness depends on some of the observed patient characteristics. Interpretation of RMSE now depends on missing data pattern, and is therefore more complex. E.g., use AMPUTE. Maximal 3 missing jointly (mechanism depends on the other 7 vars). 1 situation with 1 fixed var missing, 1 situation with 2 fixed var missing. 
+
+-	MNAR strategy: variables are missing according to their original value. Do it for 1 predictor, the strongest one.
+
+
 ### Q: Should the missing data pattern be equal for all three missing data mechanisms?
 
 --> A: Yes. Some variables are missing more often than others. For example, lab measures are missing more often. We'll create 3 or 4 patterns where joint missingness occurs in 3 variables. 50-75% of the rows has at least one of the sets of 3 variables missing.
@@ -142,16 +151,51 @@ MNARmd <- mice::md.pattern(MNAR$amp)
 
 # Estimands
 
+First, we calculate the absolute outcome risk according to different strategies for dealing with missing values.
+
+Then we evaluate the predicted outcome risk against the original outcome risk (i.e. the absolute outcome risk that would be obtained if we have no missing values). Calculate:
+
+- Root mean square prediction error;
+
+- Brier score (predicted risk vs observed outcome).
+
+Finally, across all hold-out patients:
+
+-	Calibration of (predicted Y | one or more missing predictor values) versus (predicted Y | original predictor values);
+
+-	Discrimination of (predicted Y | one or more missing predictor values) versus (predicted Y | original predictor values);
+
+-	Visual inspection of calibration plot (see plot Gary Collins in Stat med paper min 100 events).
+
+
+
 <!-- discr (c of auc) en calibr: interc en slope -->
 <!-- mse van de predicties -->
 <!-- verschil tussen voorspelde uitkomst en ware uitkomst (vanwege simulatie hier nu mogelijk) -->
 
 <!-- sensitiviteit en specificiteit niet belangrijk hier -->
 
+# Prediction Models
 
-# Planning
+Methods for prediction model development:
 
-- Steven and Hanne meet every week
+- The prediction model is a flexible regression model (including non-linear effects using RCS with 4 knots and interaction terms). We also store the means and covariance of all predictor variables (which can be used to generate imputations).
 
-- The entire team meets every other week, at a fixed moment in the week (e.g., wednesday afternoon)
+- The prediction model is a "box" of submodels  : a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
 
+<!-- https://github.com/StatEvidence/MissingDataAndPrediction -->
+
+- The prediction model is a random forest, as implemented by cforest() in the R package party. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits (since we set max 3 missings).
+
+
+Methods for generating absolute risk predictions:
+
+- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean => This strategy should work just fine.
+
+- (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution
+
+- (Only for strategy 1 and 3): Missing values are imputed 50 times by a random draw from their distribution. The resulting 50 absolute risk predictions are then averaged to obtain the final prediction.
+
+- (Only for strategy 2): The appropriate pattern submodel is selected for calculating an absolute risk
+
+- (Only for strategy 3): Missing values are handled using the surrogate splits
