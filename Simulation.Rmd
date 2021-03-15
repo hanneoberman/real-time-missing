@@ -26,18 +26,16 @@ source("./R/DGM.R") #data generating mechanism
 
 We will use a prediction model with: 
 
-- 1 binary outcome ($Y$),
-- 10 continuous predictors ($X_1$, $X_2$, ..., $X_{10}$).
+- 10 continuous predictors ($X_1$, $X_2$, ..., $X_{10}$), generated from a multivariate normal distribution;
+- 1 binary outcome ($Y$), calculated from the 10 predictors.
 
-### Q: Do we need categorical predictors as well? 
-
---> A: No, not necessary. But if it's not too complex, add them later. Leave them for now. 
+<!-- ### Q: Do we need categorical predictors as well?  
+ A: No, not necessary. But if it's not too complex, add them later. Leave them for now.  -->
 
 Our sample will include at least these 11 variables, with a sample size of 10.000 cases. 
 
-### Q: Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model?
-
---> A: Not yet. For now we want the ML and regression models to have the same info.
+<!-- ### Q: Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model? -->
+<!--  A: Not yet. For now we want the ML and regression models to have the same info. -->
 
 Initially, we were going to use the SMART data as the basis for our predictor space. But this would result in the same limitations as described in Nijman et al. (2021; i.e., low correlations between predictor variables). 
 
@@ -50,7 +48,7 @@ These correlations between variables from the SMART dataset are visualized below
 ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = TRUE)
 ```
 
-So instead, we'll create our own. --> Note: maybe add more variance-covariance matrices for sensitivity analyses
+So instead, we'll create our own.^[Note: maybe add more variance-covariance matrices for sensitivity analyses later.]
 
 
 ```{r varcov}
@@ -65,43 +63,33 @@ Sigma <- t(sigma) %*% sigma
 isSymmetric(Sigma)
 ggcorrplot::ggcorrplot(cov2cor(Sigma), type = "lower", lab = TRUE)
 ```
-
+Use the 10 predictors to calculate the outcome. Also include some interaction terms, a log transformation, and a spline to create a need for ML models; not just regression models.
 
 ```{r}
-# let's generate some data (note that this part is still based on the SMART data predictor space!)
+# let's generate some data 
 n <- 10000
-set.seed(123)
-dat <- generate_sample(n, Sigma)
+set.seed(11)
+dat <- generate_sample(n, Sigma, interaction = TRUE)
 glimpse(dat)
 
 # check prevalence and auc
 out <- check_characteristics(dat)
 ```
+The DGM model includes one cubic term and 9 interactions. 
 
-The prevalence of the outcome is `r out$prevalence`. The C index/AUC of the model is `r out$auc`. Note: make the C index 0.75.
+The prevalence of the outcome is `r out$prevalence`. The C index/AUC of a simple logistic model is `r out$auc`. 
 
-### Q: What other characteristics do we need to check to see if the data suits our purpose?
+<!-- ### Q: What other characteristics do we need to check to see if the data suits our purpose? -->
+<!-- A: With tree based methods, we'll need more interesting interactions -->
 
---> A: With tree based methods, we'll need more interesting interactions
+<!-- We added interaction terms between the first predictor and all others to create a need for ML models. -->
 
-We added interaction terms between the first predictor and all others to create a need for ML models.
+<!-- ### Q: Is 10 interactions enough to make the data more realistic/complex? -->
+<!-- A: Yes, make them a factor 10 or even 20 smaller than main effects. Add a spline effect as well. -->
 
-### Q: Is 10 interactions enough to make the data more realistic/complex?
+<!-- ### Q: Are additional non-linear effects needed (e.g., log-transformed predictors)?  -->
+<!-- A: Yes. -->
 
---> A: Yes, make them a factor 10 or even 20 smaller than main effects. Add a spline effect as well.
-
-### Q: Are additional non-linear effects needed (e.g., log-transformed predictors)?
-
---> A: Yes.
-
-```{r}
-# now add some interaction terms (actually 1 squared term, 9 interactions)
-dat <- generate_sample(n, varcov, interaction = TRUE)
-# check prevalence and auc
-out <- check_characteristics(dat)
-```
-
-The prevalence of the outcome now is `r out$prevalence`. The C index/AUC of the model is `r out$auc`.
 
 The next step is to ampute the complete set using several missing data patterns. Note that this part of the simulation pipeline is still very much under construction. 
 
@@ -122,9 +110,6 @@ In the original proposal, the missing data mechanisms were defined as:
 
 --> A: Indeed, it will be predicted.
 
-### Q: What is meant with MAR situation 1 and 2 in the Word doc from our last meeting?
-
---> A: Not relevant anymore.
 
 ```{r}
 # create MCAR missingness
