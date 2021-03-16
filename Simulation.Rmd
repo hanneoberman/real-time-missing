@@ -110,6 +110,16 @@ In the original proposal, the missing data mechanisms were defined as:
 
 --> A: Indeed, it will be predicted.
 
+### Q: Should we amupte each row once? To ammulate a 'real' situation? Or should we apply each mechanism to each case. 
+
+A: Each mechanism gets its own amputed dataset. To get equivalent problems for each method.
+
+###: Q: Does it matter if we develop the log reg prediction model on the complete dataset or the imputed incomplete set?
+
+- 4 datasets
+
+- 4*3 prediction models 
+
 
 ```{r}
 # create MCAR missingness
@@ -164,7 +174,7 @@ Finally, across all hold-out patients:
 
 Methods for prediction model development:
 
-- The prediction model is a flexible regression model (including non-linear effects using RCS with 4 knots and interaction terms). We also store the means and covariance of all predictor variables (which can be used to generate imputations).
+- The prediction model is a flexible regression model (including non-linear effects using RCS (restricted qubic splines) with 4 knots and interaction terms). We also store the means and covariance of all predictor variables (which can be used to generate imputations).
 
 - The prediction model is a "box" of submodels  : a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
 
