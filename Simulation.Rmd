@@ -9,6 +9,27 @@ This document contain the set-up of our SIG project titled "An evaluation of 're
 
 # Data Generating Mechanism
 
+## Discussion topics: DGM
+
+- Alle modellen alleen op complete data fitten (RF, log reg, Pattern mixture submodel) 
+
+- Dataset voor ontwikkelen predictiemodel regressie, imputatie, en rf
+
+- En een dataset om te imputeren, waarin missing values moeten komen
+
+- Onder hetzelfde model genereren we nieuwe data voor het valideren
+
+- Idealiter zouden de regressie en rf modellen op de complete data dezelfde c-index/prestatie hebben
+
+- En dan trekken we steeds een validatieset op basis van hetzelfde mechanisme en daar schieten we gaten in volgens de missingness mechanisms
+
+- Calibratieslope varieert enorm: onder en overfitting wisselt elkaar af, dus je kunt pech of geluk hebben. Bij een dev set van 1 miljoen dan heeft ie perfecte calibratie. In de gemiddelde performance verdwijnt het, maar wat bij rf steeds misgaat is de variantie in de prestatie. Als je een model ontwikkelt, zit je soms heel ver van een goed model af.
+
+- Conclusie: zowel dev als val set trekken we meermaals. Voorafgaand aan de analyse pipeline.
+
+
+## Complete Data
+
 ```{r setup, message = FALSE, warning = FALSE, include = FALSE}
 # environment
 library("dplyr") #for the pipe operator
@@ -48,7 +69,7 @@ These correlations between variables from the SMART dataset are visualized below
 ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = TRUE)
 ```
 
-So instead, we'll create our own.^[Note: maybe add more variance-covariance matrices for sensitivity analyses later.]
+So instead, we'll create one^[Note: maybe add more variance-covariance matrices for sensitivity analyses later.] ourselves.
 
 
 ```{r varcov}
@@ -63,21 +84,43 @@ Sigma <- t(sigma) %*% sigma
 isSymmetric(Sigma)
 ggcorrplot::ggcorrplot(cov2cor(Sigma), type = "lower", lab = TRUE)
 ```
-Use the 10 predictors to calculate the outcome. Also include some interaction terms, a log transformation, and a spline to create a need for ML models; not just regression models.
 
-```{r}
+We use these 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. We also added one log-transformation (natural logarithm of the absolute value of the second predictor), and will add one (restricted cubic) spline.
+
+### Would the qubic term be sufficient instead of a spline, since this results in a 'U shaped' logistic curve?
+
+That is, a quadratic relation between a predictor and a binary outcome looks like the figure below. You can imagine to fit a spline with 4 knots through this logistic curve. Is an explicitly simulated spline then still necessary?
+
+![](./www/logisticcurve.png)
+
+For now, the outcome is calculated using one log-transformation, one cubic term, and 9 interactions.
+
+```{r dataset}
 # let's generate some data 
 n <- 10000
 set.seed(11)
 dat <- generate_sample(n, Sigma, interaction = TRUE)
+
+# what do the data look like?
 glimpse(dat)
 
-# check prevalence and auc
-out <- check_characteristics(dat)
+# save data
+saveRDS(dat, file = "Data/dataset.RDS")
 ```
-The DGM model includes one cubic term and 9 interactions. 
 
-The prevalence of the outcome is `r out$prevalence`. The C index/AUC of a simple logistic model is `r out$auc`. 
+
+```{r auc}
+# check prevalence and auc
+logistic <- fit_logistic(dat)
+saveRDS(logistic, file = "Data/logistic_model.RDS")
+
+# fit random forest on the complete data
+rf <- fit_rf(dat)
+saveRDS(rf, file = "Data/rf_model.RDS")
+```
+
+
+The prevalence of the outcome is `r mean(dat$Y)`. The C index/AUC of the  logistic model (without interactions) is `r logistic$auc`. 
 
 <!-- ### Q: What other characteristics do we need to check to see if the data suits our purpose? -->
 <!-- A: With tree based methods, we'll need more interesting interactions -->
@@ -90,58 +133,93 @@ The prevalence of the outcome is `r out$prevalence`. The C index/AUC of a simple
 <!-- ### Q: Are additional non-linear effects needed (e.g., log-transformed predictors)?  -->
 <!-- A: Yes. -->
 
+## Incomplete Data
 
-The next step is to ampute the complete set using several missing data patterns. Note that this part of the simulation pipeline is still very much under construction. 
+The next step is to ampute the complete set using several missing data patterns. **Note that this part of the simulation pipeline is still very much under construction.** 
 
-In the original proposal, the missing data mechanisms were defined as:
+We will define one or more missing data patterns, which will be used to create incomplete datasets according to each of the three missingness mechanisms (MCAR, MAR, and MNAR).
 
--	MCAR strategy: for all hold-out patients, the same variable(s) are missing. We will set probability of missing to less than 100%, e.g. 50%.
+We'll start with a missing data pattern where joint missingness occurs in 3 variables. 50-75% of the rows has at least one of the sets of 3 variables missing.
 
--	MAR strategy: different variables are missing across the hold-out patients. The probability of missingness depends on some of the observed patient characteristics. Interpretation of RMSE now depends on missing data pattern, and is therefore more complex. E.g., use AMPUTE. Maximal 3 missing jointly (mechanism depends on the other 7 vars). 1 situation with 1 fixed var missing, 1 situation with 2 fixed var missing. 
+<!-- In the original proposal, the missing data mechanisms were defined as: -->
 
--	MNAR strategy: variables are missing according to their original value. Do it for 1 predictor, the strongest one.
+<!-- -	MCAR strategy: for all hold-out patients, the same variable(s) are missing. We will set probability of missing to less than 100%, e.g. 50%. -->
 
+<!-- -	MAR strategy: different variables are missing across the hold-out patients. The probability of missingness depends on some of the observed patient characteristics. Interpretation of RMSE now depends on missing data pattern, and is therefore more complex. E.g., use AMPUTE. Maximal 3 missing jointly (mechanism depends on the other 7 vars). 1 situation with 1 fixed var missing, 1 situation with 2 fixed var missing.  -->
 
-### Q: Should the missing data pattern be equal for all three missing data mechanisms?
+<!-- -	MNAR strategy: variables are missing according to their original value. Do it for 1 predictor, the strongest one. -->
 
---> A: Yes. Some variables are missing more often than others. For example, lab measures are missing more often. We'll create 3 or 4 patterns where joint missingness occurs in 3 variables. 50-75% of the rows has at least one of the sets of 3 variables missing.
+<!-- ### Can we just apply the same pattern to each of the mechanisms? -->
 
-### Q: Should the outcome variable contain missingness? It won't be observed anyways, right?
+<!-- ### Q: Should the missing data pattern be equal for all three missing data mechanisms? -->
 
---> A: Indeed, it will be predicted.
+<!-- A: Yes. Some variables are missing more often than others. For example, lab measures are missing more often. We'll create 3 or 4 patterns where joint missingness occurs in 3 variables. 50-75% of the rows has at least one of the sets of 3 variables missing. -->
 
-### Q: Should we amupte each row once? To ammulate a 'real' situation? Or should we apply each mechanism to each case. 
+<!-- ### Q: Should the outcome variable contain missingness? It won't be observed anyways, right? -->
+<!--  A: Indeed, it will be predicted. -->
 
-A: Each mechanism gets its own amputed dataset. To get equivalent problems for each method.
+<!-- ### Q: Should we amupte each row once? To ammulate a 'real' situation? Or should we apply each mechanism to each case.  -->
 
-###: Q: Does it matter if we develop the log reg prediction model on the complete dataset or the imputed incomplete set?
-
-- 4 datasets
-
-- 4*3 prediction models 
+<!-- A: Each mechanism gets its own amputed dataset. To get equivalent problems for each method. -->
 
 
-```{r}
-# create MCAR missingness
-MCAR <- dat %>% 
-  mice::ampute(mech = "MCAR")
+```{r missingness}
+# create missing data pattern 
+pat <-  matrix(1, 4, 10) %>% 
+  data.frame() 
+# three var missing
+pat[1,8:10] <- 0 
+# two var missing
+pat[2,c(8, 9)] <- 0 
+pat[3,c(8, 10)] <- 0
+pat[4,c(9, 10)] <- 0
+# Q: add univariate missingness as well?
+## Yes! Maar voor 10 patienten 1 missing
+
+# 4, 6 of 8 pred ontbrekend per respondent
+
+# create MCAR missingness --> MAR is het relevantste, nu nog wachten met MNAR
+# MCAR is totaal niet realistisch, dus alleen als niks werkt onder MAR
+MCAR <- dat[,-1] %>% 
+  mice::ampute(mech = "MCAR", prop = 0.5, patterns = pat)
 MCARmd <- mice::md.pattern(MCAR$amp)
 
-# create MAR missingness
-MAR <- dat %>% 
-  mice::ampute(mech = "MAR")
-MARmd <- mice::md.pattern(MAR$amp)
+# # now redundant: what is the strongest predictor?
+# dat %>% 
+#   glm(Y ~ ., family = "binomial", data = .) %>% 
+#   broom::tidy() %>% 
+#   dplyr::arrange(desc(abs(estimate)))
 
-# create MNAR missingness for the strongest predictor
-dat %>% 
-  glm(Y ~ ., family = "binomial", data = .) %>% 
-  broom::tidy() %>% 
-  dplyr::arrange(desc(abs(estimate)))
-# the strongest predictor currently is X4
-MNAR <- dat %>% 
-  mice::ampute(mech = "MNAR")
-MNARmd <- mice::md.pattern(MNAR$amp)
+
 ```
+
+## Discussion topics: Missingness conditions
+
+- Missingness mechanisms: de val set incompleet maken adhv MAR (want MCAR is niet realistisch, en MNAR is te ingewikkeld zonder de MAR performance te weten) --> mixture van verschillende MAR patronen --> mixen over kolommen: een kolom is altijd MAR right
+
+- Proportion of incomplete cases: voor alle individuen in de praktijk ontbreekt er iets.
+
+- Number of predictors with missingness: 4, 6 of 8 van de 10 missend binnen 1 set
+
+- Missingness in 'simple' vs 'complex' predictors
+
+
+### Does it matter if we develop the logistic regression prediction model on the complete dataset or the imputed incomplete set?
+
+What we do know:
+
+- The training data comes from the same population as the hold out set.
+
+- We compare the methods at the prediction level. 
+
+
+What we don't know:
+
+- Would we need 4 datasets then?
+
+- Does that mean that we fit 4*3 prediction models?
+
+- Should we create 2 missing data patterns (i.e., just missingness in the 'regular' predictors vs. in the non-linear predictors)?
 
 
 # Estimands
@@ -170,13 +248,13 @@ Finally, across all hold-out patients:
 
 <!-- sensitiviteit en specificiteit niet belangrijk hier -->
 
-# Prediction Models
+## Prediction Models
 
 Methods for prediction model development:
 
-- The prediction model is a flexible regression model (including non-linear effects using RCS (restricted qubic splines) with 4 knots and interaction terms). We also store the means and covariance of all predictor variables (which can be used to generate imputations).
+- The prediction model is a flexible regression model (including non-linear effects using RCS (restricted cubic splines) with 4 knots and interaction terms). We also store the means and covariance of all predictor variables (which can be used to generate imputations).
 
-- The prediction model is a "box" of submodels  : a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
+- The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
 
 <!-- https://github.com/StatEvidence/MissingDataAndPrediction -->
 
@@ -194,3 +272,5 @@ Methods for generating absolute risk predictions:
 - (Only for strategy 2): The appropriate pattern submodel is selected for calculating an absolute risk
 
 - (Only for strategy 3): Missing values are handled using the surrogate splits
+
+
