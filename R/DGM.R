@@ -5,10 +5,13 @@ generate_sample <-
            interaction = FALSE) {
     # generate observations for the predictors
     dat <-
-      mvtnorm::rmvnorm(n = sample_size, sigma = covariance_matrix)
+      mvtnorm::rmvnorm(n = sample_size, sigma = covariance_matrix) 
     # compute the outcome based on linear function of predictors and error term
     betas <- runif(nrow(covariance_matrix), -10, 10)
-    lin_pred <- dat %*% betas + rnorm(sample_size, sd = 35)
+    lin_pred <- 0 + 
+      betas[2]*log(abs(dat[,2])) + 
+      dat[,c(1,3:10)] %*% betas[c(1,3:10)] + 
+      rnorm(sample_size, sd = 33)
     if (interaction) {
       more_betas <- runif(10, -1, 1)
       lin_pred <- lin_pred + dat %*% more_betas * dat[, 1]
@@ -23,20 +26,40 @@ generate_sample <-
     return(dat)
   }
 
-# function to check the prevalence of the outcome variable and the auc of the prediction model
-check_characteristics <- function(dataset) {
-  # prevalence of the outcome
-  prevalence <- mean(dataset$Y)
+# function to fit a logistic model and calculate the auc 
+fit_logistic <- function(dataset) {
+  # # prevalence of the outcome
+  # prevalence <- mean(dataset$Y)
   # fit prediction model
   mod <- glm(Y ~ ., family = "binomial", data = dataset)
   # c index/auc
   auc <-
     pROC::roc(Y ~ prob,
-              data = cbind(dat, prob = predict(mod)),
+              data = cbind(dataset, prob = predict(mod)),
               quiet = TRUE)$auc
   # output
-  return(data.frame(
-    prevalence = round(prevalence, 2),
+  return(list(
+    mod = mod,
+    auc = round(auc, 2)
+  ))
+}
+
+
+# function to fit a random forest and calculate the auc 
+fit_rf <- function(dataset) {
+  # # prevalence of the outcome
+  # prevalence <- mean(dataset$Y)
+  # fit prediction model
+  mod <- party::cforest(Y~., data = dataset)
+  # c index/auc
+  pred_dat <- predict(mod) %>%  as.vector() %>% cbind(dataset, prob = .) #setNames(c(names(.)[-ncol(.)], "prob"))
+  auc <-
+    pROC::roc(Y ~ prob,
+              data = pred_dat,
+              quiet = TRUE)$auc
+  # output
+  return(list(
+    mod = mod,
     auc = round(auc, 2)
   ))
 }
