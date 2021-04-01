@@ -1,6 +1,7 @@
 ---
 title: "SIG Project Real-Time Imputation"
 author: "Steven Nijman, Thomas Debray, Maarten van Smeden, Gerko Vink, Hanne Oberman"
+output: pdf_document
 ---
 
 # Aim
@@ -114,9 +115,9 @@ saveRDS(dat, file = "Data/dataset.RDS")
 logistic <- fit_logistic(dat)
 saveRDS(logistic, file = "Data/logistic_model.RDS")
 
-# fit random forest on the complete data
-rf <- fit_rf(dat)
-saveRDS(rf, file = "Data/rf_model.RDS")
+# # fit random forest on the complete data
+# rf <- fit_rf(dat)
+# saveRDS(rf, file = "Data/rf_model.RDS")
 ```
 
 
