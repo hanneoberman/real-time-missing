@@ -11,7 +11,7 @@ generate_sample <-
     lin_pred <- 0 + 
       betas[2]*log(abs(dat[,2])) + 
       dat[,c(1,3:10)] %*% betas[c(1,3:10)] + 
-      rnorm(sample_size, sd = 33)
+      rnorm(sample_size, sd = 25)
     if (interaction) {
       more_betas <- runif(10, -1, 1)
       lin_pred <- lin_pred + dat %*% more_betas * dat[, 1]
@@ -50,9 +50,9 @@ fit_rf <- function(dataset) {
   # # prevalence of the outcome
   # prevalence <- mean(dataset$Y)
   # fit prediction model
-  mod <- party::cforest(Y~., data = dataset)
+  mod <- ranger::ranger(Y~., data = dataset, num.trees = 100, min.node.size = 10)
   # c index/auc
-  pred_dat <- predict(mod) %>%  as.vector() %>% cbind(dataset, prob = .) #setNames(c(names(.)[-ncol(.)], "prob"))
+  pred_dat <- predict(mod, data = dataset) %>% .$predictions %>% cbind(dataset, prob = .) 
   auc <-
     pROC::roc(Y ~ prob,
               data = pred_dat,
