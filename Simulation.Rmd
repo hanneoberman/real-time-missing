@@ -1,12 +1,17 @@
 ---
 title: "SIG Project Real-Time Imputation"
 author: "Steven Nijman, Thomas Debray, Maarten van Smeden, Gerko Vink, Hanne Oberman"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
 
 # Aim
 
 This document contain the set-up of our SIG project titled "An evaluation of 'real-time' missing data handling in machine learning and prevailing statistical models". The aim is to compare different strategies for developing prediction models that can handle the presence of missing values real time in a single patient.
+
+![](./www/simulationdiagram.png)
+
 
 # Data Generating Mechanism
 
@@ -26,7 +31,7 @@ This document contain the set-up of our SIG project titled "An evaluation of 're
 
 - Calibratieslope varieert enorm: onder en overfitting wisselt elkaar af, dus je kunt pech of geluk hebben. Bij een dev set van 1 miljoen dan heeft ie perfecte calibratie. In de gemiddelde performance verdwijnt het, maar wat bij rf steeds misgaat is de variantie in de prestatie. Als je een model ontwikkelt, zit je soms heel ver van een goed model af.
 
-- Conclusie: zowel dev als val set trekken we meermaals. Voorafgaand aan de analyse pipeline.
+- Conclusie: zowel dev als val set trekken we meermaals. Voorafgaand aan de analyse pipeline. n_val = 500?
 
 
 ## Complete Data
@@ -38,6 +43,8 @@ library("ggcorrplot") #for easy visualization of correlations
 library("mvtnorm") #for multivariate normal distributions
 library("pROC") #for easy calculation of the auc
 library("mice") #for missing data stuffs
+library("ranger")
+library("randomForest")
 
 # data
 load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
@@ -115,13 +122,51 @@ saveRDS(dat, file = "Data/dataset.RDS")
 logistic <- fit_logistic(dat)
 saveRDS(logistic, file = "Data/logistic_model.RDS")
 
-# # fit random forest on the complete data
-# rf <- fit_rf(dat)
+# run pattern mixture models
+mod4 <- glm(Y ~ X1+X2+X3+X4+X5+X6, family = "binomial", data = dat)
+mod6 <- glm(Y ~ X1+X2+X3+X4, family = "binomial", data = dat)
+mod8 <- glm(Y ~ X1+X2, family = "binomial", data = dat)
+
+auc4 <-
+    pROC::roc(Y ~ prob,
+              data = cbind(dat, prob = predict(mod4)),
+              quiet = TRUE)$auc
+auc6 <-
+    pROC::roc(Y ~ prob,
+              data = cbind(dat, prob = predict(mod6)),
+              quiet = TRUE)$auc
+auc8 <-
+    pROC::roc(Y ~ prob,
+              data = cbind(dat, prob = predict(mod8)),
+              quiet = TRUE)$auc
+
+auc4
+auc6
+auc8
+
+# fit random forest on the complete data
+#mod <- ranger(Y~., data = dat)
+#pred <- predict(mod, data=dat)
+rf <- fit_rf(dat)
 # saveRDS(rf, file = "Data/rf_model.RDS")
+
+# why is the auc 1? test on new data
+dataset <- generate_sample(n, Sigma, interaction = TRUE)
+pred_dat <- predict(rf$mod, data = dataset) %>% .$predictions %>% cbind(dataset, prob = .) 
+(auc_rf <-pROC::roc(Y ~ prob,
+              data = pred_dat,
+              quiet = TRUE)$auc)
+(auc_logistic <-
+    pROC::roc(Y ~ prob,
+              data = cbind(dataset, prob = predict(logistic$mod)),
+              quiet = TRUE)$auc)
+
 ```
 
 
-The prevalence of the outcome is `r mean(dat$Y)`. The C index/AUC of the  logistic model (without interactions) is `r logistic$auc`. 
+The prevalence of the outcome is `r mean(dat$Y)`. The C index/AUC of the logistic model (without interactions) is `r logistic$auc`, and of the random forest `r rf$auc`. 
+
+Voor PMKS code: https://core.ac.uk/download/pdf/216055043.pdf
 
 <!-- ### Q: What other characteristics do we need to check to see if the data suits our purpose? -->
 <!-- A: With tree based methods, we'll need more interesting interactions -->
@@ -165,32 +210,36 @@ We'll start with a missing data pattern where joint missingness occurs in 3 vari
 
 
 ```{r missingness}
+# set types of MAR missingness outside of simulation loop
+set.seed(1)
+MAR_types <- rep(c("LEFT", "MID", "TAIL", "RIGHT"), 3) #sample(c("LEFT", "MID", "TAIL", "RIGHT"), size = 12, replace = TRUE)
+
 # create missing data pattern 
-pat <-  matrix(1, 4, 10) %>% 
+pat <-  matrix(1, 12, 10) %>% 
   data.frame() 
-# three var missing
-pat[1,8:10] <- 0 
-# two var missing
-pat[2,c(8, 9)] <- 0 
-pat[3,c(8, 10)] <- 0
-pat[4,c(9, 10)] <- 0
+# four var missing
+pat[1:4,7:10] <- 0 
+# six var missing
+pat[5:8,5:10] <- 0 
+# eight var missing
+pat[9:12,3:10] <- 0
+
 # Q: add univariate missingness as well?
 ## Yes! Maar voor 10 patienten 1 missing
-
-# 4, 6 of 8 pred ontbrekend per respondent
+## No! 4, 6 of 8 pred ontbrekend per respondent
 
 # create MCAR missingness --> MAR is het relevantste, nu nog wachten met MNAR
 # MCAR is totaal niet realistisch, dus alleen als niks werkt onder MAR
-MCAR <- dat[,-1] %>% 
-  mice::ampute(mech = "MCAR", prop = 0.5, patterns = pat)
-MCARmd <- mice::md.pattern(MCAR$amp)
+incomplete <- dat[,-1] %>% 
+  mice::ampute(mech = "MAR", prop = 0.999, patterns = pat, type = MAR_types) %>% # random trekken buiten loop
+  .$amp 
+md <- mice::md.pattern(incomplete)
 
 # # now redundant: what is the strongest predictor?
 # dat %>% 
 #   glm(Y ~ ., family = "binomial", data = .) %>% 
 #   broom::tidy() %>% 
 #   dplyr::arrange(desc(abs(estimate)))
-
 
 ```
 
