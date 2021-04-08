@@ -2,18 +2,20 @@
 generate_sample <-
   function(sample_size,
            covariance_matrix,
+           linear_bs,
+           non_linear_bs,
            interaction = FALSE) {
     # generate observations for the predictors
     dat <-
       mvtnorm::rmvnorm(n = sample_size, sigma = covariance_matrix) 
     # compute the outcome based on linear function of predictors and error term
-    betas <- runif(nrow(covariance_matrix), -10, 10)
+    betas <- linear_bs #runif(nrow(covariance_matrix), -10, 10)
     lin_pred <- 0 + 
       betas[2]*log(abs(dat[,2])) + 
       dat[,c(1,3:10)] %*% betas[c(1,3:10)] + 
-      rnorm(sample_size, sd = 25)
+      rnorm(sample_size, sd = 25) #--> eruit halen!!!
     if (interaction) {
-      more_betas <- runif(10, -1, 1)
+      more_betas <- non_linear_bs#runif(10, -1, 1)
       lin_pred <- lin_pred + dat %*% more_betas * dat[, 1]
     }
     # convert to probabilities

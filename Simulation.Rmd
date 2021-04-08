@@ -107,7 +107,11 @@ For now, the outcome is calculated using one log-transformation, one cubic term,
 # let's generate some data 
 n <- 10000
 set.seed(11)
-dat <- generate_sample(n, Sigma, interaction = TRUE)
+
+# generate the regression coefficients
+linear_betas <- runif(nrow(Sigma), -10, 10)
+non_linear_betas <- runif(10, -1, 1)
+dat <- generate_sample(n, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
 
 # what do the data look like?
 glimpse(dat)
@@ -151,14 +155,14 @@ rf <- fit_rf(dat)
 # saveRDS(rf, file = "Data/rf_model.RDS")
 
 # why is the auc 1? test on new data
-dataset <- generate_sample(n, Sigma, interaction = TRUE)
+dataset <- generate_sample(n, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
 pred_dat <- predict(rf$mod, data = dataset) %>% .$predictions %>% cbind(dataset, prob = .) 
 (auc_rf <-pROC::roc(Y ~ prob,
               data = pred_dat,
               quiet = TRUE)$auc)
 (auc_logistic <-
     pROC::roc(Y ~ prob,
-              data = cbind(dataset, prob = predict(logistic$mod)),
+              data = cbind(dataset, prob = predict(logistic$mod, data = dataset)),
               quiet = TRUE)$auc)
 
 ```
