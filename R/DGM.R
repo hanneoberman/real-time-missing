@@ -13,9 +13,9 @@ generate_sample <-
     lin_pred <- 0 + 
       betas[2]*log(abs(dat[,2])) + 
       dat[,c(1,3:10)] %*% betas[c(1,3:10)] + 
-      rnorm(sample_size, sd = 25) #--> eruit halen!!!
+      rnorm(sample_size, sd = 2) 
     if (interaction) {
-      more_betas <- non_linear_bs#runif(10, -1, 1)
+      more_betas <- non_linear_bs
       lin_pred <- lin_pred + dat %*% more_betas * dat[, 1]
     }
     # convert to probabilities
