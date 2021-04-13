@@ -4,6 +4,8 @@ author: "Steven Nijman, Thomas Debray, Maarten van Smeden, Gerko Vink, Hanne Obe
 output:
   html_document:
     df_print: paged
+    toc: true
+    number_sections: true
 ---
 
 Simulation pipeline organized according to the ADEMP approach: Aims, Data-generating mechanisms, Methods, Estimands, Performance measures.
@@ -47,7 +49,7 @@ We use a DGM model with:
 
 We decided against the use of a 'real world' variance-covariance matrix for the predictor variables. Initially, we were going to use the SMART data as the basis for our predictor space. But this would result in the same limitations as described in Nijman et al. (2021; i.e., low correlations between predictor variables). 
 
-Therefore, we randomly generated a variance-covariance matrix for the purpose of this study. This matrix^[Note: maybe add more variance-covariance matrices for sensitivity analyses later.] serves as the basis for each development and/or validation dataset used in this study. 
+Therefore, we randomly generated a variance-covariance matrix for the purpose of this study. This matrix^[Note. Maybe add more variance-covariance matrices for sensitivity analyses later.] serves as the basis for each development and/or validation dataset used in this study. 
 
 ```{r varcov}
 # create a variance-covariance matrix with p predictors
