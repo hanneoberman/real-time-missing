@@ -97,7 +97,7 @@ glimpse(dat)
 saveRDS(dat, file = "Data/dataset.RDS")
 ```
 
-In this dev set, the prevalence of the outcome is `r mean(dat$Y)`. 
+The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(dat$Y)`. 
 
 How well do the three types of models fit?
 
@@ -180,10 +180,13 @@ The AUC in the new data is:
 
 ## Validation set
 
-We use a sample size of 500 in the validation sets.
+We use a sample size of 2000 in the validation sets, to make sure there are at least 200 events in de val set, with the prevalence of ~0.15. 
+
+### Q: I wrote down that we need 200 events in the val set, but also that we need 2000 events in the val set. Which one is correct?
+
 
 ```{r valset}
-valset <- generate_sample(sample_size = 500, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
+valset <- generate_sample(sample_size = 2000, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
 
 # # now redundant: what is the strongest predictor?
 # dat %>% 
@@ -193,9 +196,9 @@ valset <- generate_sample(sample_size = 500, Sigma, linear_betas, non_linear_bet
 
 ```
 
-The next step is to ampute the validation set using several missing data patterns and missingness mechanisms. 
+The number of events in this val set is `r sum(valset$Y)`. The next step is to ampute the validation set using several missing data patterns and missingness mechanisms. 
 
-We use a mixture of three missing data patterns, with 40%, 60%, and 80% of variables being missing per case. The missingness mechanisms are a mixture as well: we combine the four types of MAR missingness ("MAR left", "MAR right", "MAR mid", and "MAR tail".
+We use a mixture of three missing data patterns, with 40%, 60%, and 80% of variables being missing per case. The missingness mechanisms are a mixture as well: we combine the four types of MAR missingness ("MAR left", "MAR right", "MAR mid", and "MAR tail").
 
 ```{r missingness}
 # define the types of MAR missngness
@@ -224,9 +227,9 @@ incomplete <- valset[,-1] %>%
 md <- mice::md.pattern(incomplete)
 ```
 
-### Q: Is't not possible to define a missingness mechanism for each variable, is that a problem? Last meeting I wrote: "mechnismes mixen over kolommen: een kolom is altijd MAR right".
+<!-- ### Q: The ampute function allows for different types of MAR across patterns, not variables. But last meeting we discussed "mechnismes mixen over kolommen 1 kolom is dan bijv. altijd MAR right". Is this a problem? -->
 
-### Q: For now, we only introduced missingness in 'simple' (vs 'complex') predictors, is that ok?
+<!-- ### Q: Just to check: currently we only introduce missingness in 'simple' predictors (vs 'complex', e.g. quadratic/transformed), is that ok? -->
 
 
 <!-- ## Discussion topics: DGM -->
@@ -301,23 +304,46 @@ md <- mice::md.pattern(incomplete)
 
 # Estimands
 
-Define estimands and/or other targets of the simulation study.
+Define estimands and/or other targets of the simulation study: 
+
+- We calculate the absolute outcome risk according to different strategies for dealing with missing values.
+
 
 
 # Methods
 
-Identify methods to be evaluated and consider whether they are appropriate for estimand/target identified.
+Identify methods to be evaluated and consider whether they are appropriate for estimand/target identified. 
+
+Methods for prediction model development:
+
+- Strategy 1: The prediction model is a flexible regression model **(including non-linear effects using RCS (restricted cubic splines) with 4 knots and interaction terms)**. We also store the means and covariance of all predictor variables (which can be used to generate imputations).
+
+- Strategy 2: The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
+
+- Strategy 3: The prediction model is a random forest, as implemented by **cforest() in the R package party**. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits **(since we set max 3 missings)**.
+
+### Q: Should we indeed include interaction terms and splines in the regression model like the original study proposal? Or should we leave then out to make sure the performance of the different models is comparable?
+
+### Q: Is there an example/article/repo for the surrogate splits random forest model?
+
+Methods for generating absolute risk predictions:
+
+- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean => This strategy should work just fine.
+
+- (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution
+
+- (Only for strategy 1 and 3): Missing values are imputed 50 times by a random draw from their distribution. The resulting 50 absolute risk predictions are then averaged to obtain the final prediction.
+
+- (Only for strategy 2): The appropriate pattern submodel is selected for calculating an absolute risk
+
+- (Only for strategy 3): Missing values are handled using the surrogate splits
 
 
 # Performance measures
 
-List all performance measures to be estimated, justifying their relevance to estimands or other targets.
+List all performance measures to be estimated, justifying their relevance to estimands or other targets. 
 
-# Old
-
-First, we calculate the absolute outcome risk according to different strategies for dealing with missing values.
-
-Then we evaluate the predicted outcome risk against the original outcome risk (i.e. the absolute outcome risk that would be obtained if we have no missing values). Calculate:
+We evaluate the predicted outcome risk against the original outcome risk (i.e. the absolute outcome risk that would be obtained if we have no missing values). Calculate:
 
 - Root mean square prediction error;
 
@@ -340,27 +366,5 @@ Finally, across all hold-out patients:
 <!-- sensitiviteit en specificiteit niet belangrijk hier -->
 
 
-Methods for prediction model development:
-
-- The prediction model is a flexible regression model (including non-linear effects using RCS (restricted cubic splines) with 4 knots and interaction terms). We also store the means and covariance of all predictor variables (which can be used to generate imputations).
-
-- The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
-
-<!-- https://github.com/StatEvidence/MissingDataAndPrediction -->
-
-- The prediction model is a random forest, as implemented by cforest() in the R package party. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits (since we set max 3 missings).
-
-
-Methods for generating absolute risk predictions:
-
-- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean => This strategy should work just fine.
-
-- (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution
-
-- (Only for strategy 1 and 3): Missing values are imputed 50 times by a random draw from their distribution. The resulting 50 absolute risk predictions are then averaged to obtain the final prediction.
-
-- (Only for strategy 2): The appropriate pattern submodel is selected for calculating an absolute risk
-
-- (Only for strategy 3): Missing values are handled using the surrogate splits
 
 

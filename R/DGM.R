@@ -10,7 +10,7 @@ generate_sample <-
       mvtnorm::rmvnorm(n = sample_size, sigma = covariance_matrix) 
     # compute the outcome based on linear function of predictors and error term
     betas <- linear_bs #runif(nrow(covariance_matrix), -10, 10)
-    lin_pred <- 0 + 
+    lin_pred <- -5 + 
       betas[2]*log(abs(dat[,2])) + 
       dat[,c(1,3:10)] %*% betas[c(1,3:10)] + 
       rnorm(sample_size, sd = 2) 
