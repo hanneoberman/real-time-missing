@@ -125,38 +125,38 @@ The C index/AUC of the logistic model (without interactions) is `r logistic$auc`
 
 ```{r}
 # why is the auc of the rf 1? test all models on new data
-dataset <-
+devset <-
   generate_sample(n, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
 
 # logistics model
 auc_logistic <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(dataset, prob = predict(logistic$mod, newdata = dataset)),
+      data = cbind(devset, prob = predict(logistic$mod, newdata = devset)),
       quiet = TRUE
     )$auc
 # pattern mixture models
 auc_pm4 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(dataset, prob = predict(mod4, newdata =  dataset)),
+      data = cbind(devset, prob = predict(mod4, newdata =  devset)),
       quiet = TRUE
     )$auc
 auc_pm6 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(dataset, prob = predict(mod6, newdata =  dataset)),
+      data = cbind(devset, prob = predict(mod6, newdata =  devset)),
       quiet = TRUE
     )$auc
 auc_pm8 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(dataset, prob = predict(mod8, newdata =  dataset)),
+      data = cbind(devset, prob = predict(mod8, newdata =  devset)),
       quiet = TRUE
     )$auc
 # rf model
 pred_dat <-
-  predict(rf$mod, data = dataset) %>% .$predictions %>% cbind(dataset, prob = .)
+  predict(rf$mod, data = devset) %>% .$predictions %>% cbind(devset, prob = .)
 auc_rf <- pROC::roc(Y ~ prob,
                      data = pred_dat,
                      quiet = TRUE)$auc
@@ -178,7 +178,7 @@ We use a sample size of 20000 in the validation sets, to make sure there are at 
 
 
 ```{r valset}
-valset <- generate_sample(sample_size = 2000, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
+valset <- generate_sample(sample_size = 20000, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
 
 # # now redundant: what is the strongest predictor?
 # dat %>% 
@@ -308,7 +308,7 @@ Identify methods to be evaluated and consider whether they are appropriate for e
 
 Methods for prediction model development:
 
-- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 4 knots. We also store the means and covariance of all predictor variables (which can be used to generate imputations).
+- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 3 knots. We also store the means and covariance of all predictor variables (which can be used to generate imputations).
 
 - Strategy 2: The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
 

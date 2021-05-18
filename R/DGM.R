@@ -10,7 +10,7 @@ generate_sample <-
       mvtnorm::rmvnorm(n = sample_size, sigma = covariance_matrix) 
     # compute the outcome based on linear function of predictors and error term
     betas <- linear_bs #runif(nrow(covariance_matrix), -10, 10)
-    lin_pred <- -5 + 
+    lin_pred <- -4.5 + 
       betas[2]*log(abs(dat[,2])) + 
       dat[,c(1,3:10)] %*% betas[c(1,3:10)] + 
       rnorm(sample_size, sd = 2) 
@@ -32,8 +32,10 @@ generate_sample <-
 fit_logistic <- function(dataset) {
   # # prevalence of the outcome
   # prevalence <- mean(dataset$Y)
+  # spline knots
+  knots <- quantile(dataset$X10, p = c(0.25, 0.5, 0.75))
   # fit prediction model
-  mod <- glm(Y ~ ., family = "binomial", data = dataset)
+  mod <- glm(Y ~ splines::bs(X10)+., family = "binomial", data = dataset)
   # c index/auc
   auc <-
     pROC::roc(Y ~ prob,
