@@ -64,15 +64,7 @@ Sigma <- t(sigma) %*% sigma
 ggcorrplot::ggcorrplot(cov2cor(Sigma), type = "lower", lab = TRUE)
 ```
 
-We use the 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. We also added one log-transformation (natural logarithm of the absolute value of the second predictor), and will add one (restricted cubic) spline.
-
-### Q: Would the qubic term be sufficient instead of a spline, since this results in a 'U shaped' logistic curve? Yes.
-
-That is, a quadratic relation between a predictor and a binary outcome looks like the figure below. You can imagine to fit a spline with 4 knots through this logistic curve. Is an explicitly simulated spline then still necessary?
-
-![](./www/logisticcurve.png)
-
-For now, the outcome is calculated using one log-transformation, one cubic term, and 9 interactions.
+We use the 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. For additional complexity, we add one log-transformation (the natural logarithm of the absolute value of the second predictor).
 
 
 ## Development set
@@ -180,9 +172,9 @@ The AUC in the new data is:
 
 ## Validation set
 
-We use a sample size of 2000 in the validation sets, to make sure there are at least 200 events in de val set, with the prevalence of ~0.15. 
+We use a sample size of 20000 in the validation sets, to make sure there are at least 2000 events in de val set, with the prevalence of ~0.15. 
 
-### Q: I wrote down that we need 200 events in the val set, but also that we need 2000 events in the val set. Which one is correct? More is better, so at least 200 but rather  2000.
+<!-- ### Q: I wrote down that we need 200 events in the val set, but also that we need 2000 events in the val set. Which one is correct? More is better, so at least 200 but rather  2000. -->
 
 
 ```{r valset}
@@ -316,15 +308,15 @@ Identify methods to be evaluated and consider whether they are appropriate for e
 
 Methods for prediction model development:
 
-- Strategy 1: The prediction model is a flexible regression model **(including non-linear effects using RCS (restricted cubic splines) with 4 knots and interaction terms)**. We also store the means and covariance of all predictor variables (which can be used to generate imputations).
+- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 4 knots. We also store the means and covariance of all predictor variables (which can be used to generate imputations).
 
 - Strategy 2: The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
 
-- Strategy 3: The prediction model is a random forest, as implemented by **cforest() in the R package party**. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits **(since we set max 3 missings)**.
+- Strategy 3: The prediction model is a random forest, as implemented by **cforest() in the R package party**. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits **(since we set max 3 missings)**. See "surrogate decisions based on additional variables (cf. Breiman et al., 1984; Hothorn et al., 2006)" (Hapfelmeier, p. 6).
 
-### Q: Should we indeed include interaction terms and splines in the regression model like the original study proposal? Or should we leave then out to make sure the performance of the different models is comparable? Ok, we can leave them out of the prediction model. Or do both, to look at the diffs. Otherwise we have vanilla stats and advanced ML or the other way around. So incl RSC, but not interact.
+<!-- ### Q: Should we indeed include interaction terms and splines in the regression model like the original study proposal? Or should we leave then out to make sure the performance of the different models is comparable? Ok, we can leave them out of the prediction model. Or do both, to look at the diffs. Otherwise we have vanilla stats and advanced ML or the other way around. So incl RSC, but not interact. -->
 
-### Q: Is there an example/article/repo for the surrogate splits random forest model? This is already incl. in the cforest package. Hapmeier?? See email. Also ask Zoe Dunias about tuning of rf.
+<!-- ### Q: Is there an example/article/repo for the surrogate splits random forest model? This is already incl. in the cforest package. Hapmeier?? See email. Also ask Zoe Dunias about tuning of rf. -->
 
 Methods for generating absolute risk predictions:
 
