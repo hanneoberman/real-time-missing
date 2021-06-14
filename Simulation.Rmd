@@ -100,28 +100,40 @@ logistic <- fit_logistic(dat)
 # saveRDS(logistic, file = "Data/logistic_model.RDS")
 
 # pattern mixture models
-mod4 <- glm(Y ~ X1 + X2 + X3 + X4 + X5 + X6, family = "binomial", data = dat)
-mod6 <- glm(Y ~ X1 + X2 + X3 + X4, family = "binomial", data = dat)
-mod8 <- glm(Y ~ X1 + X2, family = "binomial", data = dat)
-auc4 <-
-  pROC::roc(Y ~ prob,
-            data = cbind(dat, prob = predict(mod4)),
-            quiet = TRUE)$auc
+mod6 <- glm(Y ~ X1 + X2 + X3 + X4 + X5 + X6, family = "binomial", data = dat)
+mod4 <- glm(Y ~ X1 + X2 + X3 + X4, family = "binomial", data = dat)
+mod2 <- glm(Y ~ X1 + X2, family = "binomial", data = dat)
 auc6 <-
   pROC::roc(Y ~ prob,
             data = cbind(dat, prob = predict(mod6)),
             quiet = TRUE)$auc
-auc8 <-
+auc4 <-
   pROC::roc(Y ~ prob,
-            data = cbind(dat, prob = predict(mod8)),
+            data = cbind(dat, prob = predict(mod4)),
+            quiet = TRUE)$auc
+auc2 <-
+  pROC::roc(Y ~ prob,
+            data = cbind(dat, prob = predict(mod2)),
             quiet = TRUE)$auc
 
 # random forest
 rf <- fit_rf(dat)
+rp <- rpart::rpart(Y~.,dat)
+# plot(rp)
+# text(rp)
 # saveRDS(rf, file = "Data/rf_model.RDS")
 ```
 
-The C index/AUC of the logistic model (without interactions) is `r logistic$auc`, of the submodels it's `r round(auc4,2)`, `r round(auc6,2)`, and `r round(auc8,2)`, and of the random forest `r rf$auc`. This perfect accuracy of the rf on the training set should not be a problem, see https://towardsdatascience.com/one-common-misconception-about-random-forest-and-overfitting-47cae2e2c23b. But just to check, we fit these models on a new dev set.
+Run random forest in party package
+
+```{r}
+# start <- Sys.time()
+# rf_party <- party::cforest(Y~., data=dat)
+# end <- Sys.time()
+# (elapsed <- end-start)
+```
+
+The C index/AUC of the logistic model (without interactions) is `r logistic$auc`, of the submodels it's `r round(auc6,2)`, `r round(auc4,2)`, and `r round(auc2,2)`, and of the random forest `r rf$auc`. This perfect accuracy of the rf on the training set should not be a problem, see https://towardsdatascience.com/one-common-misconception-about-random-forest-and-overfitting-47cae2e2c23b. But just to check, we fit these models on a new dev set.
 
 ```{r}
 # why is the auc of the rf 1? test all models on new data
@@ -136,36 +148,51 @@ auc_logistic <-
       quiet = TRUE
     )$auc
 # pattern mixture models
-auc_pm4 <-
-    pROC::roc(
-      Y ~ prob,
-      data = cbind(devset, prob = predict(mod4, newdata =  devset)),
-      quiet = TRUE
-    )$auc
 auc_pm6 <-
     pROC::roc(
       Y ~ prob,
       data = cbind(devset, prob = predict(mod6, newdata =  devset)),
       quiet = TRUE
     )$auc
-auc_pm8 <-
+auc_pm4 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod8, newdata =  devset)),
+      data = cbind(devset, prob = predict(mod4, newdata =  devset)),
+      quiet = TRUE
+    )$auc
+auc_pm2 <-
+    pROC::roc(
+      Y ~ prob,
+      data = cbind(devset, prob = predict(mod2, newdata =  devset)),
       quiet = TRUE
     )$auc
 # rf model
-pred_dat <-
+pred_rf <-
   predict(rf$mod, data = devset) %>% .$predictions %>% cbind(devset, prob = .)
 auc_rf <- pROC::roc(Y ~ prob,
-                     data = pred_dat,
+                     data = pred_rf,
+                     quiet = TRUE)$auc
+pred_rp <- predict(rp, newdata = devset)
+auc_rp <- pROC::roc(Y ~ prob,
+                     data = cbind(devset, prob = pred_rp),
                      quiet = TRUE)$auc
 ```
+Check with party package
+
+```{r}
+# start <- Sys.time()
+# pred_party <- predict(rf_party, newdata = devset)
+# end <- Sys.time()
+# (elapsed2 <- end-start)
+```
+
+
+
 The AUC in the new data is:
 
 - `r auc_logistic` for the logistic model;
 
-- `r auc_pm4`, `r auc_pm6`, and `r auc_pm8` for the pattern mixture models;
+- `r auc_pm6`, `r auc_pm4`, and `r auc_pm2` for the pattern mixture models;
 
 - `r auc_rf` for the random forest.
  
@@ -213,11 +240,13 @@ pat[9:12,3:10] <- 0
 Ampute the validation set according to the missing data patterns and missingness mechanisms.
 
 ```{r ampute}
-incomplete <- valset[,-1] %>% 
-  mice::ampute(mech = "MAR", prop = 0.999, patterns = pat, type = MAR_types) %>% # random trekken buiten loop
+# make the validation set incomplete according to the missing data pattern and MAR types
+testset <- valset[,-1] %>% 
+  mice::ampute(mech = "MAR", prop = 0.999, patterns = pat, type = MAR_types) %>% 
   .$amp 
-md <- mice::md.pattern(incomplete)
+md <- mice::md.pattern(testset)
 ```
+
 
 <!-- ### Q: The ampute function allows for different types of MAR across patterns, not variables. But last meeting we discussed "mechnismes mixen over kolommen 1 kolom is dan bijv. altijd MAR right". Is this a problem? -->
 
@@ -308,15 +337,44 @@ Identify methods to be evaluated and consider whether they are appropriate for e
 
 Methods for prediction model development:
 
-- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 3 knots. We also store the means and covariance of all predictor variables (which can be used to generate imputations).
+- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 3 knots. We also store the means and covariance of all predictor variables (which can be used to generate imputations). package condmvnorm.
 
-- Strategy 2: The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
+- Strategy 2: The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel". In our case, we estimate just 3 submodels (with 2, 4, or 6 variables observed according to the missing data pattern).
 
-- Strategy 3: The prediction model is a random forest, as implemented by **cforest() in the R package party**. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits **(since we set max 3 missings)**. See "surrogate decisions based on additional variables (cf. Breiman et al., 1984; Hothorn et al., 2006)" (Hapfelmeier, p. 6).
+- Strategy 3: The prediction model is a random forest, as implemented by cforest() in the R package party. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits (since we set max 3 missings). See "surrogate decisions based on additional variables (cf. Breiman et al., 1984; Hothorn et al., 2006)" (Hapfelmeier, p. 6). This is **very** computationally inefficient. Alternatively, we could implement random forests using the `missranger` package. 
+
+- Toevoegen: RF icm de joint methode van steven
+
+- Toevoegen: RF via missranger
+
+- Niet toevoegen: predictor indicator methode 
+
+HPC kan wel. 15 min voor real-time is niet problematisch.
+Het is wel een logische methode om te gebruiken want we zijn bij predictie ook niet geinteresseerd in CIs. De ware kans boeit niet. MI is niet noodzakelijk, gepoolde schatting is wel iets stabieler. Maar calibratiecurve maken (LOESS) is wel ingewikkeld na imputatie.
+
+Checken calibratie RF. Model tuning maakt heel erg uit. Zelfs zonder missingness. Bij gini moet je voorkomen. Niet tunen/default is gewoon gemiddelde. Met verkeerde instellingen is resultaat onpubliceerbaar.
+
+Checken AUC tov regressie.
+
+
 
 <!-- ### Q: Should we indeed include interaction terms and splines in the regression model like the original study proposal? Or should we leave then out to make sure the performance of the different models is comparable? Ok, we can leave them out of the prediction model. Or do both, to look at the diffs. Otherwise we have vanilla stats and advanced ML or the other way around. So incl RSC, but not interact. -->
 
 <!-- ### Q: Is there an example/article/repo for the surrogate splits random forest model? This is already incl. in the cforest package. Hapmeier?? See email. Also ask Zoe Dunias about tuning of rf. -->
+
+```{r}
+# generate predictions for each of the cases in the (incomplete) testset
+testset %>% glimpse() 
+
+# start with easiest method: box of submodels
+testset$nob <- rowSums(!is.na(testset)) #add variable for the number of observed variables
+testsplit <- split(testset, testset$nob)
+Y_pred_mod2 <- predict(mod2, newdata = testsplit$`2`)
+
+# test with random forest
+Y_pred_rp <- predict(rp, newdata = testset)
+```
+
 
 Methods for generating absolute risk predictions:
 
