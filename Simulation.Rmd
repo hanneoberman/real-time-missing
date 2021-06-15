@@ -128,7 +128,7 @@ Run random forest in party package
 
 ```{r}
 # start <- Sys.time()
-# rf_party <- party::cforest(Y~., data=dat)
+rf_party <- party::cforest(Y~., data=dat)
 # end <- Sys.time()
 # (elapsed <- end-start)
 ```
@@ -372,6 +372,7 @@ testsplit <- split(testset, testset$nob)
 Y_pred_mod2 <- predict(mod2, newdata = testsplit$`2`)
 
 # test with random forest
+test <- predict(rf_party, newdata = testset)
 Y_pred_rp <- predict(rp, newdata = testset)
 ```
 
