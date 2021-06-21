@@ -20,15 +20,20 @@ library("ggcorrplot") #for easy visualization of correlations
 library("mvtnorm") #for multivariate normal distributions
 library("pROC") #for easy calculation of the auc
 library("mice") #for missing data stuffs
-library("ranger")
-library("missRanger")
-library("party")
+library("ranger") #for fast random forests
+library("missRanger") #for fast random forests with imputation
+library("party") #for random forests with surrogate splits
+# library("moreparty") #for faster version of random forests with surrogate splits
+# library("foreach") #for parallelization of random forests
+# library("doParallel")
+# registerDoParallel()
 
 # # data
 # load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
 
 # functions
 source("./R/DGM.R") #data generating mechanism
+source("./R/fit.R") #fit models on complete data
 ```
 
 # Aims
@@ -80,45 +85,37 @@ set.seed(11)
 # generate the regression coefficients
 linear_betas <- runif(nrow(Sigma),-1, 1)
 non_linear_betas <- runif(10,-0.1, 0.1)
-dat <-
+trainset <-
   generate_sample(n, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
 
 # what do the data look like?
-glimpse(dat)
+glimpse(trainset)
 
 # save data
-saveRDS(dat, file = "Data/dataset.RDS")
+saveRDS(trainset, file = "Data/trainset.RDS")
 ```
 
-The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(dat$Y)`. 
+The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(trainset$Y)`. 
 
 How well do the three types of models fit?
 
 ```{r fit}
 # check prevalence and auc of the models
 # logistic model
-mod_true <- fit_true(dat)
+mod_true <- fit_true(trainset)
 
-# pattern mixture models
-mod_sub_6 <- fit_sub(dat, Y ~ X1 + X2 + X3 + X4 + X5 + X6) 
-mod_sub_4 <- fit_sub(dat, Y ~ X1 + X2 + X3 + X4) 
-mod_sub_2 <- fit_sub(dat, Y ~ X1 + X2) 
+# pattern mixture modtrainset
+mod_sub_6 <- fit_sub(trainset, Y ~ X1 + X2 + X3 + X4 + X5 + X6) 
+mod_sub_4 <- fit_sub(trainset, Y ~ X1 + X2 + X3 + X4) 
+mod_sub_2 <- fit_sub(trainset, Y ~ X1 + X2) 
 
 # random forest models
-mod_rf_imp <- fit_rf_imp(dat)
-mod_rf_sur <- fit_fr_sub(dat)
+mod_rf_imp <- fit_rf_imp(trainset)
+# mod_rf_sur <- moreparty::fastcforest(Y~., data=dat)
+# mod_rf_sur <- fit_fr_sub(dat)
+
 ```
 
-Run random forest in party package
-
-```{r}
-# start <- Sys.time()
-# rf_party <- party::cforest(Y~., data=dat)
-# end <- Sys.time()
-# (elapsed <- end-start)
-```
-
-The C index/AUC of the logistic model (without interactions) is `r logistic$auc`, of the submodels it's `r round(auc6,2)`, `r round(auc4,2)`, and `r round(auc2,2)`, and of the random forest `r rf$auc`. This perfect accuracy of the rf on the training set should not be a problem, see https://towardsdatascience.com/one-common-misconception-about-random-forest-and-overfitting-47cae2e2c23b. But just to check, we fit these models on a new dev set.
 
 ```{r}
 # why is the auc of the rf 1? test all models on new data
@@ -126,60 +123,52 @@ devset <-
   generate_sample(n, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
 
 # logistics model
-auc_logistic <-
+auc_true <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(logistic$mod, newdata = devset)),
+      data = cbind(devset, prob = predict(mod_true$mod, newdata = devset)),
       quiet = TRUE
     )$auc
 # pattern mixture models
-auc_pm6 <-
+auc_sub_2 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod6, newdata =  devset)),
+      data = cbind(devset, prob = predict(mod_sub_2$mod, newdata =  devset)),
       quiet = TRUE
     )$auc
-auc_pm4 <-
+auc_sub_4 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod4, newdata =  devset)),
+      data = cbind(devset, prob = predict(mod_sub_4$mod, newdata =  devset)),
       quiet = TRUE
     )$auc
-auc_pm2 <-
+auc_sub_6 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod2, newdata =  devset)),
+      data = cbind(devset, prob = predict(mod_sub_6$mod, newdata =  devset)),
       quiet = TRUE
     )$auc
-# rf model
-pred_rf <-
-  predict(rf$mod, data = devset) %>% .$predictions %>% cbind(devset, prob = .)
-auc_rf <- pROC::roc(Y ~ prob,
-                     data = pred_rf,
-                     quiet = TRUE)$auc
-pred_rp <- predict(rp, newdata = devset)
-auc_rp <- pROC::roc(Y ~ prob,
-                     data = cbind(devset, prob = pred_rp),
-                     quiet = TRUE)$auc
+# rf models
+# pred_rf_imp <- predict(mod_rf_imp$mod, data = devset) %>% .$predictions %>% cbind(devset, prob = .)
+auc_rf_imp <-
+  pROC::roc(Y ~ prob,
+            data = cbind(devset, prob = predict(mod_rf_imp$mod, data = devset)[["predictions"]]),
+            quiet = TRUE)$auc
+# pred_rf <-
+#   predict(rf$mod, data = devset) %>% .$predictions %>% cbind(devset, prob = .)
+# auc_rf <- pROC::roc(Y ~ prob,
+#                      data = pred_rf,
+#                      quiet = TRUE)$auc
+
 ```
-Check with party package
-
-```{r}
-# start <- Sys.time()
-# pred_party <- predict(rf_party, newdata = devset)
-# end <- Sys.time()
-# (elapsed2 <- end-start)
-```
-
-
 
 The AUC in the new data is:
 
-- `r auc_logistic` for the logistic model;
+- `r auc_true` for the logistic model;
 
-- `r auc_pm6`, `r auc_pm4`, and `r auc_pm2` for the pattern mixture models;
+- `r auc_sub_6`, `r auc_sub_4`, and `r auc_sub_2` for the pattern mixture models;
 
-- `r auc_rf` for the random forest.
+- `r auc_rf_imp` for the random forest.
  
 
 ## Validation set
@@ -354,11 +343,11 @@ testset %>% glimpse()
 # start with easiest method: box of submodels
 testset$nob <- rowSums(!is.na(testset)) #add the number of observed variables
 testsplit <- split(testset, testset$nob)
-Y_pred_mod2 <- predict(mod2, newdata = testsplit$`2`)
+Y_pred_mod2 <- predict(mod_sub_2$mod, newdata = testsplit$`2`)
 
 # test with random forest
-test <- predict(rf_party, newdata = testset)
-Y_pred_rp <- predict(rp, newdata = testset)
+#test <- predict(rf_party, newdata = testset)
+#Y_pred_rp <- predict(rp, newdata = testset)
 ```
 
 
