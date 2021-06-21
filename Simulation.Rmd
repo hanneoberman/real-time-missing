@@ -22,11 +22,14 @@ library("pROC") #for easy calculation of the auc
 library("mice") #for missing data stuffs
 library("ranger") #for fast random forests
 library("missRanger") #for fast random forests with imputation
-library("party") #for random forests with surrogate splits
+# library("party") #for random forests with surrogate splits
 # library("moreparty") #for faster version of random forests with surrogate splits
 # library("foreach") #for parallelization of random forests
 # library("doParallel")
-# registerDoParallel()
+# doFuture::registerDoParallel()
+# library("doFuture")
+# doFuture::registerDoFuture()
+# y <- plyr::llply(1:2, identity, .parallel = TRUE)
 
 # # data
 # load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
