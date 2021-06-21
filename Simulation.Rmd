@@ -21,7 +21,8 @@ library("mvtnorm") #for multivariate normal distributions
 library("pROC") #for easy calculation of the auc
 library("mice") #for missing data stuffs
 library("ranger")
-library("randomForest")
+library("missRanger")
+library("party")
 
 # # data
 # load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
@@ -96,39 +97,23 @@ How well do the three types of models fit?
 ```{r fit}
 # check prevalence and auc of the models
 # logistic model
-logistic <- fit_logistic(dat)
-# saveRDS(logistic, file = "Data/logistic_model.RDS")
+mod_true <- fit_true(dat)
 
 # pattern mixture models
-mod6 <- glm(Y ~ X1 + X2 + X3 + X4 + X5 + X6, family = "binomial", data = dat)
-mod4 <- glm(Y ~ X1 + X2 + X3 + X4, family = "binomial", data = dat)
-mod2 <- glm(Y ~ X1 + X2, family = "binomial", data = dat)
-auc6 <-
-  pROC::roc(Y ~ prob,
-            data = cbind(dat, prob = predict(mod6)),
-            quiet = TRUE)$auc
-auc4 <-
-  pROC::roc(Y ~ prob,
-            data = cbind(dat, prob = predict(mod4)),
-            quiet = TRUE)$auc
-auc2 <-
-  pROC::roc(Y ~ prob,
-            data = cbind(dat, prob = predict(mod2)),
-            quiet = TRUE)$auc
+mod_sub_6 <- fit_sub(dat, Y ~ X1 + X2 + X3 + X4 + X5 + X6) 
+mod_sub_4 <- fit_sub(dat, Y ~ X1 + X2 + X3 + X4) 
+mod_sub_2 <- fit_sub(dat, Y ~ X1 + X2) 
 
-# random forest
-rf <- fit_rf(dat)
-rp <- rpart::rpart(Y~.,dat)
-# plot(rp)
-# text(rp)
-# saveRDS(rf, file = "Data/rf_model.RDS")
+# random forest models
+mod_rf_imp <- fit_rf_imp(dat)
+mod_rf_sur <- fit_fr_sub(dat)
 ```
 
 Run random forest in party package
 
 ```{r}
 # start <- Sys.time()
-rf_party <- party::cforest(Y~., data=dat)
+# rf_party <- party::cforest(Y~., data=dat)
 # end <- Sys.time()
 # (elapsed <- end-start)
 ```
@@ -367,7 +352,7 @@ Checken AUC tov regressie.
 testset %>% glimpse() 
 
 # start with easiest method: box of submodels
-testset$nob <- rowSums(!is.na(testset)) #add variable for the number of observed variables
+testset$nob <- rowSums(!is.na(testset)) #add the number of observed variables
 testsplit <- split(testset, testset$nob)
 Y_pred_mod2 <- predict(mod2, newdata = testsplit$`2`)
 
