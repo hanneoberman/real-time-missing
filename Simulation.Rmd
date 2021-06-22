@@ -237,6 +237,7 @@ Y_pred_sub <- pred_sub(valset[,-2], submodel_2 = mod_sub_2, submodel_4 = mod_sub
 
 # predict with random forest models
 Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
+saveRDS(Y_pred_rf_sur, file = "Data/rf_sur.RDS")
 
 # add mock predictions as placeholder for the conditional methods
 Y_pred_cond <- rep(0, nrow(valset))
