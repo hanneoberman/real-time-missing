@@ -33,9 +33,11 @@ fit_rf_imp <- function(dataset) {
 }
 
 # function to fit a random forest  
-fit_rf_sub <- function(dataset) {
+fit_rf_sur <- function(dataset) {
   # fit prediction model
-  mod <- party::cforest(Y~., data=dataset)
+  # mod <- party::cforest(Y~., data=dataset)
+  # mod <- moreparty::fastcforest(Y~., data=dat)
+  mod = NULL
   # output
   return(list(
     mod = mod 

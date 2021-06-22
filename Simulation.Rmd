@@ -44,8 +44,6 @@ source("./R/fit.R") #fit models on complete data
 
 This document contain the set-up of our SIG project titled "An evaluation of 'real-time' missing data handling in machine learning and prevailing statistical models". The aim is to compare different strategies for developing prediction models that can handle the presence of missing values real time in a single patient.
 
-
-
 # Data-Generating Mechanisms
 
 We use design-based simulation, with a single data-generating mechanism for the development data and validation sets. The development set is used as-is; the validation set is subsequently 'amputed'.
@@ -80,74 +78,70 @@ We use a sample size of 10.000 in the development sets. One such set is generate
 
 ```{r devset}
 # let's generate some data 
-trainset <-
-  generate_sample(n = 10000, varcov, linear_betas, non_linear_betas, interaction = TRUE)
+devset <-
+  generate_sample(sample_size = 10000, covariance_matrix = varcov, linear_bs = linear_betas, non_linear_bs = non_linear_betas, interaction = TRUE)
 
 # what do the data look like?
-glimpse(trainset)
+glimpse(devset)
 ```
 
-The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(trainset$Y)`. 
+The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(devset$Y)`. We can now fit the different models.
 
-How well do the three types of models fit?
 
 ```{r fit}
-# check prevalence and auc of the models
 # logistic model
-mod_true <- fit_true(trainset)
+mod_true <- fit_true(devset)
 
-# pattern mixture modtrainset
-mod_sub_6 <- fit_sub(trainset, Y ~ X1 + X2 + X3 + X4 + X5 + X6) 
-mod_sub_4 <- fit_sub(trainset, Y ~ X1 + X2 + X3 + X4) 
-mod_sub_2 <- fit_sub(trainset, Y ~ X1 + X2) 
+# box of submodels
+mod_sub_6 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4 + X5 + X6) 
+mod_sub_4 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4) 
+mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2) 
 
-# random forest models
-mod_rf_imp <- fit_rf_imp(trainset)
-# mod_rf_sur <- moreparty::fastcforest(Y~., data=dat)
-# mod_rf_sur <- fit_fr_sub(dat)
-
+# random forest models with imputation and with surrogate splits
+mod_rf_imp <- fit_rf_imp(devset)
+# mod_rf_sur <- fit_rf_sub(devset)
 ```
 
+To see how well these models fit the complete data, we calculate the out of sample auc on some new data.
 
-```{r}
+```{r auc, echo=FALSE, warning=FALSE}
 # test all models on new data to compute the out of sample auc
-devset <-
-  generate_sample(n, varcov, linear_betas, non_linear_betas, interaction = TRUE)
+aucset <-
+  generate_sample(sample_size = 10000, varcov, linear_betas, non_linear_betas, interaction = TRUE)
 
-# logistics model
+# logistic model
 auc_true <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_true$mod, newdata = devset[,-1])),
+      data = cbind(aucset, prob = predict(mod_true$mod, newdata = aucset[,-1])),
       quiet = TRUE
     )$auc
-# pattern mixture models
+# box of submodels
 auc_sub_2 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_sub_2$mod, newdata =  devset[,-1])),
+      data = cbind(aucset, prob = predict(mod_sub_2$mod, newdata =  aucset[,-1])),
       quiet = TRUE
     )$auc
 auc_sub_4 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_sub_4$mod, newdata =  devset[,-1])),
+      data = cbind(aucset, prob = predict(mod_sub_4$mod, newdata =  aucset[,-1])),
       quiet = TRUE
     )$auc
 auc_sub_6 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_sub_6$mod, newdata =  devset[,-1])),
+      data = cbind(aucset, prob = predict(mod_sub_6$mod, newdata =  aucset[,-1])),
       quiet = TRUE
     )$auc
 # rf models
-# pred_rf_imp <- predict(mod_rf_imp$mod, data = devset) %>% .$predictions %>% cbind(devset, prob = .)
 auc_rf_imp <-
   pROC::roc(Y ~ prob,
-            data = cbind(devset, prob = predict(mod_rf_imp$mod, data = devset[,-1])[["predictions"]]),
+            data = cbind(aucset, prob = predict(mod_rf_imp$mod, data = aucset[,-1])[["predictions"]]),
             quiet = TRUE)$auc
 # pred_rf <-
-#   predict(rf$mod, data = devset) %>% .$predictions %>% cbind(devset, prob = .)
+#   predict(rf$mod, data = aucset) %>% .$predictions %>% cbind(aucset, prob = .)
 # auc_rf <- pROC::roc(Y ~ prob,
 #                      data = pred_rf,
 #                      quiet = TRUE)$auc
@@ -158,7 +152,7 @@ The AUC in the new data is:
 
 - `r auc_true` for the logistic model;
 
-- `r auc_sub_6`, `r auc_sub_4`, and `r auc_sub_2` for the pattern mixture models;
+- `r auc_sub_6`, `r auc_sub_4`, and `r auc_sub_2` for the box of submodels;
 
 - `r auc_rf_imp` for the random forest.
  
@@ -166,9 +160,6 @@ The AUC in the new data is:
 ## Validation set
 
 We use a sample size of 20000 in the validation sets, to make sure there are at least 2000 events in de val set, with the prevalence of ~0.15. 
-
-<!-- ### Q: I wrote down that we need 200 events in the val set, but also that we need 2000 events in the val set. Which one is correct? More is better, so at least 200 but rather  2000. -->
-
 
 ```{r valset}
 # generate complete validation set
@@ -189,87 +180,9 @@ Ampute the validation set according to the missing data patterns and missingness
 ```{r ampute}
 # make the validation set incomplete according to the missing data pattern and MAR types
 testset <- create_miss(valset, miss_par)
-# testset <- valset[,-1] %>% 
-#   mice::ampute(mech = "MAR", prop = 0.999, patterns = miss_pat, type = MAR_types) %>% 
-#   .$amp 
+# check missing data pattern
 md <- mice::md.pattern(testset)
 ```
-
-
-<!-- ### Q: The ampute function allows for different types of MAR across patterns, not variables. But last meeting we discussed "mechnismes mixen over kolommen 1 kolom is dan bijv. altijd MAR right". Is this a problem? -->
-
-<!-- ### Q: Just to check: currently we only introduce missingness in 'simple' predictors (vs 'complex', e.g. quadratic/transformed), is that ok? -->
-
-
-<!-- ## Discussion topics: DGM -->
-
-<!-- - Alle modellen alleen op complete data fitten (RF, log reg, Pattern mixture submodel)  -->
-
-<!-- - Dataset voor ontwikkelen predictiemodel regressie, imputatie, en rf -->
-
-<!-- - En een dataset om te imputeren, waarin missing values moeten komen -->
-
-<!-- - Onder hetzelfde model genereren we nieuwe data voor het valideren -->
-
-<!-- - Idealiter zouden de regressie en rf modellen op de complete data dezelfde c-index/prestatie hebben -->
-
-<!-- - En dan trekken we steeds een validatieset op basis van hetzelfde mechanisme en daar schieten we gaten in volgens de missingness mechanisms -->
-
-<!-- - Calibratieslope varieert enorm: onder en overfitting wisselt elkaar af, dus je kunt pech of geluk hebben. Bij een dev set van 1 miljoen dan heeft ie perfecte calibratie. In de gemiddelde performance verdwijnt het, maar wat bij rf steeds misgaat is de variantie in de prestatie. Als je een model ontwikkelt, zit je soms heel ver van een goed model af. -->
-
-<!-- - Conclusie: zowel dev als val set trekken we meermaals. Voorafgaand aan de analyse pipeline. n_val = 500? -->
-
-
-<!-- We'll start with a missing data pattern where joint missingness occurs in 3 variables. 50-75% of the rows has at least one of the sets of 3 variables missing. -->
-
-<!-- In the original proposal, the missing data mechanisms were defined as: -->
-
-<!-- -	MCAR strategy: for all hold-out patients, the same variable(s) are missing. We will set probability of missing to less than 100%, e.g. 50%. -->
-
-<!-- -	MAR strategy: different variables are missing across the hold-out patients. The probability of missingness depends on some of the observed patient characteristics. Interpretation of RMSE now depends on missing data pattern, and is therefore more complex. E.g., use AMPUTE. Maximal 3 missing jointly (mechanism depends on the other 7 vars). 1 situation with 1 fixed var missing, 1 situation with 2 fixed var missing.  -->
-
-<!-- -	MNAR strategy: variables are missing according to their original value. Do it for 1 predictor, the strongest one. -->
-
-<!-- ### Can we just apply the same pattern to each of the mechanisms? -->
-
-<!-- ### Q: Should the missing data pattern be equal for all three missing data mechanisms? -->
-
-<!-- A: Yes. Some variables are missing more often than others. For example, lab measures are missing more often. We'll create 3 or 4 patterns where joint missingness occurs in 3 variables. 50-75% of the rows has at least one of the sets of 3 variables missing. -->
-
-<!-- ### Q: Should the outcome variable contain missingness? It won't be observed anyways, right? -->
-<!--  A: Indeed, it will be predicted. -->
-
-<!-- ### Q: Should we amupte each row once? To ammulate a 'real' situation? Or should we apply each mechanism to each case.  -->
-
-<!-- A: Each mechanism gets its own amputed dataset. To get equivalent problems for each method. -->
-
-
-<!-- Discussion topics: Missingness conditions -->
-
-<!-- - Missingness mechanisms: de val set incompleet maken adhv MAR (want MCAR is niet realistisch, en MNAR is te ingewikkeld zonder de MAR performance te weten) -> mixture van verschillende MAR patronen -> mixen over kolommen: een kolom is altijd MAR right -->
-
-<!-- - Proportion of incomplete cases: voor alle individuen in de praktijk ontbreekt er iets. -->
-
-<!-- - Number of predictors with missingness: 4, 6 of 8 van de 10 missend binnen 1 set -->
-
-
-
-<!-- ### Does it matter if we develop the logistic regression prediction model on the complete dataset or the imputed incomplete set? -->
-
-<!-- What we do know: -->
-
-<!-- - The training data comes from the same population as the hold out set. -->
-
-<!-- - We compare the methods at the prediction level.  -->
-
-
-<!-- What we don't know: -->
-
-<!-- - Would we need 4 datasets then? -->
-
-<!-- - Does that mean that we fit 4*3 prediction models? -->
-
-<!-- - Should we create 2 missing data patterns (i.e., just missingness in the 'regular' predictors vs. in the non-linear predictors)? -->
 
 # Estimands
 
@@ -289,26 +202,10 @@ Methods for prediction model development:
 
 - Strategy 2: The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel". In our case, we estimate just 3 submodels (with 2, 4, or 6 variables observed according to the missing data pattern).
 
-- Strategy 3: The prediction model is a random forest, as implemented by `cforest()` in the R package `party`. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits (since we set max 3 missings). See "surrogate decisions based on additional variables (cf. Breiman et al., 1984; Hothorn et al., 2006)" (Hapfelmeier, p. 6). This is **very** computationally inefficient. Alternatively, we could implement random forests using the `missranger` package. 
+- Strategy 3: The prediction model is a random forest, as implemented by `cforest()` in the R package `party`. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits (since we set max 3 missings). See "surrogate decisions based on additional variables (cf. Breiman et al., 1984; Hothorn et al., 2006)" (Hapfelmeier, p. 6). This is **very** computationally inefficient, so we'll need HPC power. Because in the clinical setting a 15 minute fitting procedure is not terrible, we do not scrap this method. However, we could also implement random forests in the presence of missing data using the `missranger` package. We'll add this method because it seems popular and efficient. We'll also use the joint method (Nijman et al.) to impute before fitting the `ranger` random forest.
 
-- Toevoegen: RF icm de joint methode van Steven
+Sidenote for strategy 3: Random forests are very susceptible to variations in the calibration slope, even in contexts without missingness. With huge devsets (i.e., `n_obs > 1.000.000`) or average performance across simulation repetitions, this problem fades. But we'll need to specifically check the calibration of the random forest models just to be sure!
 
-- Toevoegen: RF via missranger
-
-- Niet toevoegen: predictor indicator methode 
-
-HPC kan wel. 15 min voor real-time is niet problematisch.
-Het is wel een logische methode om te gebruiken want we zijn bij predictie ook niet geinteresseerd in CIs. De ware kans boeit niet. MI is niet noodzakelijk, gepoolde schatting is wel iets stabieler. Maar calibratiecurve maken (LOESS) is wel ingewikkeld na imputatie.
-
-Checken calibratie RF. Model tuning maakt heel erg uit. Zelfs zonder missingness. Bij gini moet je voorkomen. Niet tunen/default is gewoon gemiddelde. Met verkeerde instellingen is resultaat onpubliceerbaar.
-
-Checken AUC tov regressie.
-
-
-
-<!-- ### Q: Should we indeed include interaction terms and splines in the regression model like the original study proposal? Or should we leave then out to make sure the performance of the different models is comparable? Ok, we can leave them out of the prediction model. Or do both, to look at the diffs. Otherwise we have vanilla stats and advanced ML or the other way around. So incl RSC, but not interact. -->
-
-<!-- ### Q: Is there an example/article/repo for the surrogate splits random forest model? This is already incl. in the cforest package. Hapmeier?? See email. Also ask Zoe Dunias about tuning of rf. -->
 
 ```{r}
 # generate predictions for each of the cases in the (incomplete) testset
@@ -327,22 +224,23 @@ Y_pred_mod2 <- predict(mod_sub_2$mod, newdata = testsplit$`2`)
 
 Methods for generating absolute risk predictions:
 
-- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean => This strategy should work just fine.
+- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean.
 
-- (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution
+- (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution.
 
 - (Only for strategy 1 and 3): Missing values are imputed 50 times by a random draw from their distribution. The resulting 50 absolute risk predictions are then averaged to obtain the final prediction.
 
-- (Only for strategy 2): The appropriate pattern submodel is selected for calculating an absolute risk
+- (Only for strategy 2): The appropriate pattern submodel is selected for calculating an absolute risk.
 
-- (Only for strategy 3): Missing values are handled using the surrogate splits
+- (Only for strategy 3): Missing values are handled using the surrogate splits.
 
 
 # Performance measures
 
 List all performance measures to be estimated, justifying their relevance to estimands or other targets. 
 
-We evaluate the predicted outcome risk against the original outcome risk (i.e. the absolute outcome risk that would be obtained if we have no missing values). Calculate:
+We evaluate the predicted outcome risk against the original outcome risk (i.e. the absolute outcome risk that would be obtained if we have no missing values). 
+Calculate:
 
 - Root mean square prediction error;
 
@@ -355,15 +253,4 @@ Finally, across all hold-out patients:
 -	Discrimination of (predicted Y | one or more missing predictor values) versus (predicted Y | original predictor values);
 
 -	Visual inspection of calibration plot (see plot Gary Collins in Stat med paper min 100 events).
-
-
-
-<!-- discr (c of auc) en calibr: interc en slope -->
-<!-- mse van de predicties -->
-<!-- verschil tussen voorspelde uitkomst en ware uitkomst (vanwege simulatie hier nu mogelijk) -->
-
-<!-- sensitiviteit en specificiteit niet belangrijk hier -->
-
-
-
 
