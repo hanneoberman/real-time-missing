@@ -38,6 +38,8 @@ set.seed(1)
 # functions
 source("./R/DGM.R") #data generating mechanism
 source("./R/fit.R") #fit models on complete data
+source("./R/pred.R") #predict outcome variable from incomplete data
+source("./R/perf.R") #compute performance measures for each method
 ```
 
 # Aims
@@ -99,7 +101,7 @@ mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2)
 
 # random forest models with imputation and with surrogate splits
 mod_rf_imp <- fit_rf_imp(devset)
-# mod_rf_sur <- fit_rf_sub(devset)
+mod_rf_sur <- fit_rf_sur(devset)
 ```
 
 To see how well these models fit the complete data, we calculate the out of sample auc on some new data.
@@ -163,7 +165,14 @@ We use a sample size of 20000 in the validation sets, to make sure there are at 
 
 ```{r valset}
 # generate complete validation set
-valset <- generate_sample(sample_size = 20000, varcov, linear_betas, non_linear_betas, interaction = TRUE)
+valset <-
+  generate_sample(
+    sample_size = 20000,
+    varcov,
+    linear_betas,
+    non_linear_betas,
+    interaction = TRUE
+  )
 ```
 
 The number of events in this val set is `r sum(valset$Y)`. The next step is to ampute the validation set using several missing data patterns and missingness mechanisms. 
@@ -179,9 +188,9 @@ Ampute the validation set according to the missing data patterns and missingness
 
 ```{r ampute}
 # make the validation set incomplete according to the missing data pattern and MAR types
-testset <- create_miss(valset, miss_par)
+valset <- create_miss(valset, miss_par)
 # check missing data pattern
-md <- mice::md.pattern(testset)
+md <- mice::md.pattern(valset[,-c(1:2)])
 ```
 
 # Estimands
@@ -206,22 +215,6 @@ Methods for prediction model development:
 
 Sidenote for strategy 3: Random forests are very susceptible to variations in the calibration slope, even in contexts without missingness. With huge devsets (i.e., `n_obs > 1.000.000`) or average performance across simulation repetitions, this problem fades. But we'll need to specifically check the calibration of the random forest models just to be sure!
 
-
-```{r}
-# generate predictions for each of the cases in the (incomplete) testset
-testset %>% glimpse() 
-
-# start with easiest method: box of submodels
-testset$nob <- rowSums(!is.na(testset)) #add the number of observed variables
-testsplit <- split(testset, testset$nob)
-Y_pred_mod2 <- predict(mod_sub_2$mod, newdata = testsplit$`2`)
-
-# test with random forest
-#test <- predict(rf_party, newdata = testset)
-#Y_pred_rp <- predict(rp, newdata = testset)
-```
-
-
 Methods for generating absolute risk predictions:
 
 - (Only for strategy 1 and 3): Missing values are imputed by their conditional mean.
@@ -233,6 +226,27 @@ Methods for generating absolute risk predictions:
 - (Only for strategy 2): The appropriate pattern submodel is selected for calculating an absolute risk.
 
 - (Only for strategy 3): Missing values are handled using the surrogate splits.
+
+```{r predict}
+# generate predictions for each of the cases in the incomplete set
+valset %>% glimpse() 
+# this includes the observed values of the outcome (Y) and the number of missing predictor values, we'll exclude Y in the predictions
+
+# start with easiest method to implement: box of submodels (strategy 2)
+Y_pred_sub <- pred_sub(valset[,-2], submodel_2 = mod_sub_2, submodel_4 = mod_sub_4, submodel_6 = mod_sub_6)
+
+# predict with random forest models
+Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
+
+# add mock predictions as placeholder for the conditional methods
+Y_pred_cond <- rep(0, nrow(valset))
+
+# combine into one dataframe
+obs_vs_pred <- data.frame(Y_obs = valset[,"Y"],
+                          Y_sub = Y_pred_sub,
+                          Y_rf_sur = Y_pred_rf_sur,
+                          Y_cond = Y_pred_cond)
+```
 
 
 # Performance measures
@@ -252,5 +266,19 @@ Finally, across all hold-out patients:
 
 -	Discrimination of (predicted Y | one or more missing predictor values) versus (predicted Y | original predictor values);
 
--	Visual inspection of calibration plot (see plot Gary Collins in Stat med paper min 100 events).
+-	Visual inspection of calibration plot (see plot Gary Collins in Stat med paper, min 100 events).
+
+```{r performance}
+# for the performance it will probably be nicer to make a list with the different methods and map over them
+pred_list <- list(Y_sub = Y_pred_sub,
+                  Y_rf_sur = Y_pred_rf_sur,
+                  Y_cond = Y_pred_cond)
+
+# RMSE
+RMSE <- purrr::map(pred_list, ~ RMSE(pred = ., obs = valset[, "Y"]))
+
+# brier score, for now separate from the RMSE but could be (way) more efficient
+brier <- purrr::map(pred_list, ~ brier(pred = ., obs = valset[, "Y"]))
+
+```
 

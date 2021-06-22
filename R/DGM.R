@@ -53,12 +53,14 @@ define_miss <- function(p = 10){
   pat[5:8,5:p] <- 0 
   # eight var missing
   pat[9:12,3:p] <- 0
-  #output
-  return(list(miss_pat = pat, miss_type = MAR_types))
+  # output
+  return(list(miss_pat = cbind(Y=1, pat), miss_type = MAR_types))
 }
 
 create_miss <- function(dataset, param){
-  dataset[,-1] %>% 
+  dataset %>% 
     mice::ampute(mech = "MAR", prop = 0.999, patterns = param$miss_pat, type = param$miss_type) %>% 
-    .$amp 
+    .$amp %>% 
+    cbind(p_miss = rowSums(is.na(.)), .) %>% 
+    filter(p_miss != 0)
 }
