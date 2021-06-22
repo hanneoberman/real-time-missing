@@ -235,9 +235,10 @@ valset %>% glimpse()
 # start with easiest method to implement: box of submodels (strategy 2)
 Y_pred_sub <- pred_sub(valset[,-2], submodel_2 = mod_sub_2, submodel_4 = mod_sub_4, submodel_6 = mod_sub_6)
 
-# predict with random forest models
-Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
-saveRDS(Y_pred_rf_sur, file = "Data/rf_sur.RDS")
+# # predict with random forest models
+# Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
+# saveRDS(Y_pred_rf_sur, file = "Data/rf_sur.RDS")
+Y_pred_rf_sur <- readRDS("Data/rf_sur.RDS")
 
 # add mock predictions as placeholder for the conditional methods
 Y_pred_cond <- rep(0, nrow(valset))
@@ -276,10 +277,11 @@ pred_list <- list(Y_sub = Y_pred_sub,
                   Y_cond = Y_pred_cond)
 
 # RMSE
-RMSE <- purrr::map(pred_list, ~ RMSE(pred = ., obs = valset[, "Y"]))
+RMSE <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = valset[, "Y"]))
+RMSE
 
 # brier score, for now separate from the RMSE but could be (way) more efficient
-brier <- purrr::map(pred_list, ~ brier(pred = ., obs = valset[, "Y"]))
-
+brier <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = valset[, "Y"]))
+brier
 ```
 
