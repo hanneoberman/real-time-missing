@@ -5,7 +5,7 @@ fit_true <- function(dataset) {
   # spline knots
   knots <- quantile(dataset$X10, p = c(0.25, 0.5, 0.75))
   # fit prediction model
-  mod <- suppressWarnings(glm(Y ~ splines::bs(X10)+., family = "binomial", data = dataset))
+  mod <- suppressWarnings(glm(Y ~ splines::ns(X10)+., family = "binomial", data = dataset))
   # output
   return(list(
     mod = mod 

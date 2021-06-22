@@ -30,6 +30,7 @@ library("missRanger") #for fast random forests with imputation
 # library("doFuture")
 # doFuture::registerDoFuture()
 # y <- plyr::llply(1:2, identity, .parallel = TRUE)
+set.seed(1)
 
 # # data
 # load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
@@ -62,15 +63,12 @@ Therefore, we randomly generated a variance-covariance matrix for the purpose of
 
 ```{r varcov}
 # create a variance-covariance matrix with p predictors
-set.seed(123)
-p <- 10
-betas <- rnorm(p * (p - 1) / 2, 0, 0.1)
-sigma <- diag(p)
-sigma[upper.tri(sigma)] <- betas
-sigma[lower.tri(sigma)]  <- t(sigma)[lower.tri(sigma)]
-Sigma <- t(sigma) %*% sigma
-# isSymmetric(Sigma)
-ggcorrplot::ggcorrplot(cov2cor(Sigma), type = "lower", lab = TRUE)
+varcov <- define_varcov(p = 10)
+ggcorrplot::ggcorrplot(cov2cor(varcov), type = "lower", lab = TRUE)
+
+# create vectors with regression coefficients for linear and non-linear effects
+linear_betas <- runif(nrow(varcov),-1, 1)
+non_linear_betas <- runif(nrow(varcov),-0.1, 0.1)
 ```
 
 We use the 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. For additional complexity, we add one log-transformation (the natural logarithm of the absolute value of the second predictor).
@@ -82,20 +80,11 @@ We use a sample size of 10.000 in the development sets. One such set is generate
 
 ```{r devset}
 # let's generate some data 
-n <- 10000
-set.seed(11)
-
-# generate the regression coefficients
-linear_betas <- runif(nrow(Sigma),-1, 1)
-non_linear_betas <- runif(10,-0.1, 0.1)
 trainset <-
-  generate_sample(n, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
+  generate_sample(n = 10000, varcov, linear_betas, non_linear_betas, interaction = TRUE)
 
 # what do the data look like?
 glimpse(trainset)
-
-# save data
-saveRDS(trainset, file = "Data/trainset.RDS")
 ```
 
 The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(trainset$Y)`. 
@@ -121,41 +110,41 @@ mod_rf_imp <- fit_rf_imp(trainset)
 
 
 ```{r}
-# why is the auc of the rf 1? test all models on new data
+# test all models on new data to compute the out of sample auc
 devset <-
-  generate_sample(n, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
+  generate_sample(n, varcov, linear_betas, non_linear_betas, interaction = TRUE)
 
 # logistics model
 auc_true <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_true$mod, newdata = devset)),
+      data = cbind(devset, prob = predict(mod_true$mod, newdata = devset[,-1])),
       quiet = TRUE
     )$auc
 # pattern mixture models
 auc_sub_2 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_sub_2$mod, newdata =  devset)),
+      data = cbind(devset, prob = predict(mod_sub_2$mod, newdata =  devset[,-1])),
       quiet = TRUE
     )$auc
 auc_sub_4 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_sub_4$mod, newdata =  devset)),
+      data = cbind(devset, prob = predict(mod_sub_4$mod, newdata =  devset[,-1])),
       quiet = TRUE
     )$auc
 auc_sub_6 <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_sub_6$mod, newdata =  devset)),
+      data = cbind(devset, prob = predict(mod_sub_6$mod, newdata =  devset[,-1])),
       quiet = TRUE
     )$auc
 # rf models
 # pred_rf_imp <- predict(mod_rf_imp$mod, data = devset) %>% .$predictions %>% cbind(devset, prob = .)
 auc_rf_imp <-
   pROC::roc(Y ~ prob,
-            data = cbind(devset, prob = predict(mod_rf_imp$mod, data = devset)[["predictions"]]),
+            data = cbind(devset, prob = predict(mod_rf_imp$mod, data = devset[,-1])[["predictions"]]),
             quiet = TRUE)$auc
 # pred_rf <-
 #   predict(rf$mod, data = devset) %>% .$predictions %>% cbind(devset, prob = .)
@@ -182,14 +171,8 @@ We use a sample size of 20000 in the validation sets, to make sure there are at 
 
 
 ```{r valset}
-valset <- generate_sample(sample_size = 20000, Sigma, linear_betas, non_linear_betas, interaction = TRUE)
-
-# # now redundant: what is the strongest predictor?
-# dat %>% 
-#   glm(Y ~ ., family = "binomial", data = .) %>% 
-#   broom::tidy() %>% 
-#   dplyr::arrange(desc(abs(estimate)))
-
+# generate complete validation set
+valset <- generate_sample(sample_size = 20000, varcov, linear_betas, non_linear_betas, interaction = TRUE)
 ```
 
 The number of events in this val set is `r sum(valset$Y)`. The next step is to ampute the validation set using several missing data patterns and missingness mechanisms. 
@@ -197,30 +180,18 @@ The number of events in this val set is `r sum(valset$Y)`. The next step is to a
 We use a mixture of three missing data patterns, with 40%, 60%, and 80% of variables being missing per case. The missingness mechanisms are a mixture as well: we combine the four types of MAR missingness ("MAR left", "MAR right", "MAR mid", and "MAR tail").
 
 ```{r missingness}
-# define the types of MAR missngness
-MAR_types <- rep(c("LEFT", "MID", "TAIL", "RIGHT"), 3) 
-# set types of MAR missingness outside of simulation loop
-# set.seed(1)
-# sample(c("LEFT", "MID", "TAIL", "RIGHT"), size = 12, replace = TRUE)
-
-# create missing data patterns
-pat <-  matrix(1, 12, 10) %>% 
-  data.frame() 
-# four var missing
-pat[1:4,7:10] <- 0 
-# six var missing
-pat[5:8,5:10] <- 0 
-# eight var missing
-pat[9:12,3:10] <- 0
+# define the missingness parameters
+miss_par <- define_miss(p = nrow(varcov))
 ```
 
 Ampute the validation set according to the missing data patterns and missingness mechanisms.
 
 ```{r ampute}
 # make the validation set incomplete according to the missing data pattern and MAR types
-testset <- valset[,-1] %>% 
-  mice::ampute(mech = "MAR", prop = 0.999, patterns = pat, type = MAR_types) %>% 
-  .$amp 
+testset <- create_miss(valset, miss_par)
+# testset <- valset[,-1] %>% 
+#   mice::ampute(mech = "MAR", prop = 0.999, patterns = miss_pat, type = MAR_types) %>% 
+#   .$amp 
 md <- mice::md.pattern(testset)
 ```
 
@@ -314,13 +285,13 @@ Identify methods to be evaluated and consider whether they are appropriate for e
 
 Methods for prediction model development:
 
-- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 3 knots. We also store the means and covariance of all predictor variables (which can be used to generate imputations). package condmvnorm.
+- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 3 knots. We also store the means and covariance of all predictor variables (using package `condmvnorm`, which can be used to generate imputations).
 
 - Strategy 2: The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel". In our case, we estimate just 3 submodels (with 2, 4, or 6 variables observed according to the missing data pattern).
 
-- Strategy 3: The prediction model is a random forest, as implemented by cforest() in the R package party. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits (since we set max 3 missings). See "surrogate decisions based on additional variables (cf. Breiman et al., 1984; Hothorn et al., 2006)" (Hapfelmeier, p. 6). This is **very** computationally inefficient. Alternatively, we could implement random forests using the `missranger` package. 
+- Strategy 3: The prediction model is a random forest, as implemented by `cforest()` in the R package `party`. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits (since we set max 3 missings). See "surrogate decisions based on additional variables (cf. Breiman et al., 1984; Hothorn et al., 2006)" (Hapfelmeier, p. 6). This is **very** computationally inefficient. Alternatively, we could implement random forests using the `missranger` package. 
 
-- Toevoegen: RF icm de joint methode van steven
+- Toevoegen: RF icm de joint methode van Steven
 
 - Toevoegen: RF via missranger
 
