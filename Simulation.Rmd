@@ -1,40 +1,17 @@
 ---
 title: "SIG Project Real-Time Imputation"
-author: "Steven Nijman, Thomas Debray, Maarten van Smeden, Gerko Vink, Hanne Oberman"
+author: "Steven Nijman*, Hanne Oberman*, Gerko Vink, Thomas Debray, Maarten van Smeden"
 output:
   html_document:
     df_print: paged
+    toc: true
+    number_sections: true
 ---
 
-# Aim
-
-This document contain the set-up of our SIG project titled "An evaluation of 'real-time' missing data handling in machine learning and prevailing statistical models". The aim is to compare different strategies for developing prediction models that can handle the presence of missing values real time in a single patient.
+Simulation pipeline organized according to the ADEMP approach: Aims, Data-generating mechanisms, Methods, Estimands, Performance measures.
 
 ![](./www/simulationdiagram.png)
 
-
-# Data Generating Mechanism
-
-## Discussion topics: DGM
-
-- Alle modellen alleen op complete data fitten (RF, log reg, Pattern mixture submodel) 
-
-- Dataset voor ontwikkelen predictiemodel regressie, imputatie, en rf
-
-- En een dataset om te imputeren, waarin missing values moeten komen
-
-- Onder hetzelfde model genereren we nieuwe data voor het valideren
-
-- Idealiter zouden de regressie en rf modellen op de complete data dezelfde c-index/prestatie hebben
-
-- En dan trekken we steeds een validatieset op basis van hetzelfde mechanisme en daar schieten we gaten in volgens de missingness mechanisms
-
-- Calibratieslope varieert enorm: onder en overfitting wisselt elkaar af, dus je kunt pech of geluk hebben. Bij een dev set van 1 miljoen dan heeft ie perfecte calibratie. In de gemiddelde performance verdwijnt het, maar wat bij rf steeds misgaat is de variantie in de prestatie. Als je een model ontwikkelt, zit je soms heel ver van een goed model af.
-
-- Conclusie: zowel dev als val set trekken we meermaals. Voorafgaand aan de analyse pipeline. n_val = 500?
-
-
-## Complete Data
 
 ```{r setup, message = FALSE, warning = FALSE, include = FALSE}
 # environment
@@ -43,240 +20,244 @@ library("ggcorrplot") #for easy visualization of correlations
 library("mvtnorm") #for multivariate normal distributions
 library("pROC") #for easy calculation of the auc
 library("mice") #for missing data stuffs
-library("ranger")
-library("randomForest")
+library("ranger") #for fast random forests
+library("missRanger") #for fast random forests with imputation
+# library("party") #for random forests with surrogate splits
+# library("moreparty") #for faster version of random forests with surrogate splits
+# library("foreach") #for parallelization of random forests
+# library("doParallel")
+# doFuture::registerDoParallel()
+# library("doFuture")
+# doFuture::registerDoFuture()
+# y <- plyr::llply(1:2, identity, .parallel = TRUE)
+set.seed(1)
 
-# data
-load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
+# # data
+# load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
 
 # functions
 source("./R/DGM.R") #data generating mechanism
+source("./R/fit.R") #fit models on complete data
+source("./R/pred.R") #predict outcome variable from incomplete data
+source("./R/perf.R") #compute performance measures for each method
 ```
 
-We will use a prediction model with: 
+# Aims
 
-- 10 continuous predictors ($X_1$, $X_2$, ..., $X_{10}$), generated from a multivariate normal distribution;
+This document contain the set-up of our SIG project titled "An evaluation of 'real-time' missing data handling in machine learning and prevailing statistical models". The aim is to compare different strategies for developing prediction models that can handle the presence of missing values real time in a single patient.
+
+# Data-Generating Mechanisms
+
+We use design-based simulation, with a single data-generating mechanism for the development data and validation sets. The development set is used as-is; the validation set is subsequently 'amputed'.
+
+## DGM model
+
+We use a DGM model with: 
+
+- 10 continuous predictors ($X_1$, $X_2$, ..., $X_{10}$), with cases generated from a multivariate normal distribution;^[Note. Potentially add dichotomous predictor(s) later.]
 - 1 binary outcome ($Y$), calculated from the 10 predictors.
 
-<!-- ### Q: Do we need categorical predictors as well?  
- A: No, not necessary. But if it's not too complex, add them later. Leave them for now.  -->
+We decided against the use of a 'real world' variance-covariance matrix for the predictor variables. Initially, we were going to use the SMART data as the basis for our predictor space. But this would result in the same limitations as described in Nijman et al. (2021; i.e., low correlations between predictor variables). 
 
-Our sample will include at least these 11 variables, with a sample size of 10.000 cases. 
-
-<!-- ### Q: Do we want extra 'support' variables ($Z$) in our sample that are not included in the prediction model? -->
-<!--  A: Not yet. For now we want the ML and regression models to have the same info. -->
-
-Initially, we were going to use the SMART data as the basis for our predictor space. But this would result in the same limitations as described in Nijman et al. (2021; i.e., low correlations between predictor variables). 
-
-These correlations between variables from the SMART dataset are visualized below. 
-
-
-```{r SMART}
-# we'll use the SMART data to define the relations between predictors
-# the variance-covariance matrix is stored in the object varcov
-ggcorrplot::ggcorrplot(cov2cor(varcov), hc.order = TRUE, type = "lower", lab = TRUE)
-```
-
-So instead, we'll create one^[Note: maybe add more variance-covariance matrices for sensitivity analyses later.] ourselves.
-
+Therefore, we randomly generated a variance-covariance matrix for the purpose of this study. This matrix^[Note. Maybe add more variance-covariance matrices for sensitivity analyses later. E.g., add one with 200 predictors.] serves as the basis for each development and/or validation dataset used in this study. 
 
 ```{r varcov}
 # create a variance-covariance matrix with p predictors
-set.seed(123)
-p <- 10
-betas <- rnorm(p*(p-1)/2, 0, 0.1)
-sigma <- diag(p)
-sigma[upper.tri(sigma)] <- betas
-sigma[lower.tri(sigma)]  <- t(sigma)[lower.tri(sigma)]
-Sigma <- t(sigma) %*% sigma
-isSymmetric(Sigma)
-ggcorrplot::ggcorrplot(cov2cor(Sigma), type = "lower", lab = TRUE)
+varcov <- define_varcov(p = 10)
+ggcorrplot::ggcorrplot(cov2cor(varcov), type = "lower", lab = TRUE)
+
+# create vectors with regression coefficients for linear and non-linear effects
+linear_betas <- runif(nrow(varcov),-1, 1)
+non_linear_betas <- runif(nrow(varcov),-0.1, 0.1)
 ```
 
-We use these 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. We also added one log-transformation (natural logarithm of the absolute value of the second predictor), and will add one (restricted cubic) spline.
+We use the 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. For additional complexity, we add one log-transformation (the natural logarithm of the absolute value of the second predictor).
 
-### Would the qubic term be sufficient instead of a spline, since this results in a 'U shaped' logistic curve?
 
-That is, a quadratic relation between a predictor and a binary outcome looks like the figure below. You can imagine to fit a spline with 4 knots through this logistic curve. Is an explicitly simulated spline then still necessary?
+## Development set
 
-![](./www/logisticcurve.png)
+We use a sample size of 10.000 in the development sets. One such set is generated below.
 
-For now, the outcome is calculated using one log-transformation, one cubic term, and 9 interactions.
-
-```{r dataset}
+```{r devset}
 # let's generate some data 
-n <- 10000
-set.seed(11)
-dat <- generate_sample(n, Sigma, interaction = TRUE)
+devset <-
+  generate_sample(sample_size = 10000, covariance_matrix = varcov, linear_bs = linear_betas, non_linear_bs = non_linear_betas, interaction = TRUE)
 
 # what do the data look like?
-glimpse(dat)
-
-# save data
-saveRDS(dat, file = "Data/dataset.RDS")
+glimpse(devset)
 ```
 
+The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(devset$Y)`. We can now fit the different models.
 
-```{r auc}
-# check prevalence and auc
-logistic <- fit_logistic(dat)
-saveRDS(logistic, file = "Data/logistic_model.RDS")
 
-# run pattern mixture models
-mod4 <- glm(Y ~ X1+X2+X3+X4+X5+X6, family = "binomial", data = dat)
-mod6 <- glm(Y ~ X1+X2+X3+X4, family = "binomial", data = dat)
-mod8 <- glm(Y ~ X1+X2, family = "binomial", data = dat)
+```{r fit}
+# logistic model
+mod_true <- fit_true(devset)
 
-auc4 <-
-    pROC::roc(Y ~ prob,
-              data = cbind(dat, prob = predict(mod4)),
-              quiet = TRUE)$auc
-auc6 <-
-    pROC::roc(Y ~ prob,
-              data = cbind(dat, prob = predict(mod6)),
-              quiet = TRUE)$auc
-auc8 <-
-    pROC::roc(Y ~ prob,
-              data = cbind(dat, prob = predict(mod8)),
-              quiet = TRUE)$auc
+# box of submodels
+mod_sub_6 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4 + X5 + X6) 
+mod_sub_4 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4) 
+mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2) 
 
-auc4
-auc6
-auc8
+# random forest models with imputation and with surrogate splits
+mod_rf_imp <- fit_rf_imp(devset)
+mod_rf_sur <- fit_rf_sur(devset)
+```
 
-# fit random forest on the complete data
-#mod <- ranger(Y~., data = dat)
-#pred <- predict(mod, data=dat)
-rf <- fit_rf(dat)
-# saveRDS(rf, file = "Data/rf_model.RDS")
+To see how well these models fit the complete data, we calculate the out of sample auc on some new data.
 
-# why is the auc 1? test on new data
-dataset <- generate_sample(n, Sigma, interaction = TRUE)
-pred_dat <- predict(rf$mod, data = dataset) %>% .$predictions %>% cbind(dataset, prob = .) 
-(auc_rf <-pROC::roc(Y ~ prob,
-              data = pred_dat,
-              quiet = TRUE)$auc)
-(auc_logistic <-
-    pROC::roc(Y ~ prob,
-              data = cbind(dataset, prob = predict(logistic$mod)),
-              quiet = TRUE)$auc)
+```{r auc, echo=FALSE, warning=FALSE}
+# test all models on new data to compute the out of sample auc
+aucset <-
+  generate_sample(sample_size = 10000, varcov, linear_betas, non_linear_betas, interaction = TRUE)
+
+# logistic model
+auc_true <-
+    pROC::roc(
+      Y ~ prob,
+      data = cbind(aucset, prob = predict(mod_true$mod, newdata = aucset[,-1])),
+      quiet = TRUE
+    )$auc
+# box of submodels
+auc_sub_2 <-
+    pROC::roc(
+      Y ~ prob,
+      data = cbind(aucset, prob = predict(mod_sub_2$mod, newdata =  aucset[,-1])),
+      quiet = TRUE
+    )$auc
+auc_sub_4 <-
+    pROC::roc(
+      Y ~ prob,
+      data = cbind(aucset, prob = predict(mod_sub_4$mod, newdata =  aucset[,-1])),
+      quiet = TRUE
+    )$auc
+auc_sub_6 <-
+    pROC::roc(
+      Y ~ prob,
+      data = cbind(aucset, prob = predict(mod_sub_6$mod, newdata =  aucset[,-1])),
+      quiet = TRUE
+    )$auc
+# rf models
+auc_rf_imp <-
+  pROC::roc(Y ~ prob,
+            data = cbind(aucset, prob = predict(mod_rf_imp$mod, data = aucset[,-1])[["predictions"]]),
+            quiet = TRUE)$auc
+# pred_rf <-
+#   predict(rf$mod, data = aucset) %>% .$predictions %>% cbind(aucset, prob = .)
+# auc_rf <- pROC::roc(Y ~ prob,
+#                      data = pred_rf,
+#                      quiet = TRUE)$auc
 
 ```
 
+The AUC in the new data is:
 
-The prevalence of the outcome is `r mean(dat$Y)`. The C index/AUC of the logistic model (without interactions) is `r logistic$auc`, and of the random forest `r rf$auc`. 
+- `r auc_true` for the logistic model;
 
-Voor PMKS code: https://core.ac.uk/download/pdf/216055043.pdf
+- `r auc_sub_6`, `r auc_sub_4`, and `r auc_sub_2` for the box of submodels;
 
-<!-- ### Q: What other characteristics do we need to check to see if the data suits our purpose? -->
-<!-- A: With tree based methods, we'll need more interesting interactions -->
+- `r auc_rf_imp` for the random forest.
+ 
 
-<!-- We added interaction terms between the first predictor and all others to create a need for ML models. -->
+## Validation set
 
-<!-- ### Q: Is 10 interactions enough to make the data more realistic/complex? -->
-<!-- A: Yes, make them a factor 10 or even 20 smaller than main effects. Add a spline effect as well. -->
+We use a sample size of 20000 in the validation sets, to make sure there are at least 2000 events in de val set, with the prevalence of ~0.15. 
 
-<!-- ### Q: Are additional non-linear effects needed (e.g., log-transformed predictors)?  -->
-<!-- A: Yes. -->
+```{r valset}
+# generate complete validation set
+valset <-
+  generate_sample(
+    sample_size = 20000,
+    varcov,
+    linear_betas,
+    non_linear_betas,
+    interaction = TRUE
+  )
+```
 
-## Incomplete Data
+The number of events in this val set is `r sum(valset$Y)`. The next step is to ampute the validation set using several missing data patterns and missingness mechanisms. 
 
-The next step is to ampute the complete set using several missing data patterns. **Note that this part of the simulation pipeline is still very much under construction.** 
-
-We will define one or more missing data patterns, which will be used to create incomplete datasets according to each of the three missingness mechanisms (MCAR, MAR, and MNAR).
-
-We'll start with a missing data pattern where joint missingness occurs in 3 variables. 50-75% of the rows has at least one of the sets of 3 variables missing.
-
-<!-- In the original proposal, the missing data mechanisms were defined as: -->
-
-<!-- -	MCAR strategy: for all hold-out patients, the same variable(s) are missing. We will set probability of missing to less than 100%, e.g. 50%. -->
-
-<!-- -	MAR strategy: different variables are missing across the hold-out patients. The probability of missingness depends on some of the observed patient characteristics. Interpretation of RMSE now depends on missing data pattern, and is therefore more complex. E.g., use AMPUTE. Maximal 3 missing jointly (mechanism depends on the other 7 vars). 1 situation with 1 fixed var missing, 1 situation with 2 fixed var missing.  -->
-
-<!-- -	MNAR strategy: variables are missing according to their original value. Do it for 1 predictor, the strongest one. -->
-
-<!-- ### Can we just apply the same pattern to each of the mechanisms? -->
-
-<!-- ### Q: Should the missing data pattern be equal for all three missing data mechanisms? -->
-
-<!-- A: Yes. Some variables are missing more often than others. For example, lab measures are missing more often. We'll create 3 or 4 patterns where joint missingness occurs in 3 variables. 50-75% of the rows has at least one of the sets of 3 variables missing. -->
-
-<!-- ### Q: Should the outcome variable contain missingness? It won't be observed anyways, right? -->
-<!--  A: Indeed, it will be predicted. -->
-
-<!-- ### Q: Should we amupte each row once? To ammulate a 'real' situation? Or should we apply each mechanism to each case.  -->
-
-<!-- A: Each mechanism gets its own amputed dataset. To get equivalent problems for each method. -->
-
+We use a mixture of three missing data patterns, with 40%, 60%, and 80% of variables being missing per case. The missingness mechanisms are a mixture as well: we combine the four types of MAR missingness ("MAR left", "MAR right", "MAR mid", and "MAR tail").
 
 ```{r missingness}
-# set types of MAR missingness outside of simulation loop
-set.seed(1)
-MAR_types <- rep(c("LEFT", "MID", "TAIL", "RIGHT"), 3) #sample(c("LEFT", "MID", "TAIL", "RIGHT"), size = 12, replace = TRUE)
-
-# create missing data pattern 
-pat <-  matrix(1, 12, 10) %>% 
-  data.frame() 
-# four var missing
-pat[1:4,7:10] <- 0 
-# six var missing
-pat[5:8,5:10] <- 0 
-# eight var missing
-pat[9:12,3:10] <- 0
-
-# Q: add univariate missingness as well?
-## Yes! Maar voor 10 patienten 1 missing
-## No! 4, 6 of 8 pred ontbrekend per respondent
-
-# create MCAR missingness --> MAR is het relevantste, nu nog wachten met MNAR
-# MCAR is totaal niet realistisch, dus alleen als niks werkt onder MAR
-incomplete <- dat[,-1] %>% 
-  mice::ampute(mech = "MAR", prop = 0.999, patterns = pat, type = MAR_types) %>% # random trekken buiten loop
-  .$amp 
-md <- mice::md.pattern(incomplete)
-
-# # now redundant: what is the strongest predictor?
-# dat %>% 
-#   glm(Y ~ ., family = "binomial", data = .) %>% 
-#   broom::tidy() %>% 
-#   dplyr::arrange(desc(abs(estimate)))
-
+# define the missingness parameters
+miss_par <- define_miss(p = nrow(varcov))
 ```
 
-## Discussion topics: Missingness conditions
+Ampute the validation set according to the missing data patterns and missingness mechanisms.
 
-- Missingness mechanisms: de val set incompleet maken adhv MAR (want MCAR is niet realistisch, en MNAR is te ingewikkeld zonder de MAR performance te weten) --> mixture van verschillende MAR patronen --> mixen over kolommen: een kolom is altijd MAR right
-
-- Proportion of incomplete cases: voor alle individuen in de praktijk ontbreekt er iets.
-
-- Number of predictors with missingness: 4, 6 of 8 van de 10 missend binnen 1 set
-
-- Missingness in 'simple' vs 'complex' predictors
-
-
-### Does it matter if we develop the logistic regression prediction model on the complete dataset or the imputed incomplete set?
-
-What we do know:
-
-- The training data comes from the same population as the hold out set.
-
-- We compare the methods at the prediction level. 
-
-
-What we don't know:
-
-- Would we need 4 datasets then?
-
-- Does that mean that we fit 4*3 prediction models?
-
-- Should we create 2 missing data patterns (i.e., just missingness in the 'regular' predictors vs. in the non-linear predictors)?
-
+```{r ampute}
+# make the validation set incomplete according to the missing data pattern and MAR types
+valset <- create_miss(valset, miss_par)
+# check missing data pattern
+md <- mice::md.pattern(valset[,-c(1:2)])
+```
 
 # Estimands
 
-First, we calculate the absolute outcome risk according to different strategies for dealing with missing values.
+Define estimands and/or other targets of the simulation study: 
 
-Then we evaluate the predicted outcome risk against the original outcome risk (i.e. the absolute outcome risk that would be obtained if we have no missing values). Calculate:
+- We calculate the absolute outcome risk according to different strategies for dealing with missing values.
+
+
+
+# Methods
+
+Identify methods to be evaluated and consider whether they are appropriate for estimand/target identified. 
+
+Methods for prediction model development:
+
+- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 3 knots **check definition, use package `RCS`**. We also store the means and covariance of all predictor variables (using package `condmvnorm`, which can be used to generate imputations).
+
+- Strategy 2: The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel". In our case, we estimate just 3 submodels (with 2, 4, or 6 variables observed according to the missing data pattern).
+
+- Strategy 3: The prediction model is a random forest, as implemented by `cforest()` in the R package `party`. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits (since we set max 3 missings). See "surrogate decisions based on additional variables (cf. Breiman et al., 1984; Hothorn et al., 2006)" (Hapfelmeier, p. 6). This is **very** computationally inefficient, so we'll need HPC power. Because in the clinical setting a 15 minute fitting procedure is not terrible, we do not scrap this method. However, we could also implement random forests in the presence of missing data using the `missranger` package. We'll add this method because it seems popular and efficient. We'll also use the joint method (Nijman et al.) to impute before fitting the `ranger` random forest.
+
+Sidenote for strategy 3: Random forests are very susceptible to variations in the calibration slope, even in contexts without missingness. With huge devsets (i.e., `n_obs > 1.000.000`) or average performance across simulation repetitions, this problem fades. But we'll need to specifically check the calibration of the random forest models just to be sure!
+
+Methods for generating absolute risk predictions:
+
+- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean.
+
+- (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution.
+
+- (Only for strategy 1 and 3): Missing values are imputed 50 times by a random draw from their distribution. The resulting 50 absolute risk predictions are then averaged to obtain the final prediction.
+
+- (Only for strategy 2): The appropriate pattern submodel is selected for calculating an absolute risk.
+
+- (Only for strategy 3): Missing values are handled using the surrogate splits.
+
+```{r predict}
+# generate predictions for each of the cases in the incomplete set
+valset %>% glimpse() 
+# this includes the observed values of the outcome (Y) and the number of missing predictor values, we'll exclude Y in the predictions
+
+# start with easiest method to implement: box of submodels (strategy 2)
+Y_pred_sub <- pred_sub(valset[,-2], submodel_2 = mod_sub_2, submodel_4 = mod_sub_4, submodel_6 = mod_sub_6)
+
+# # predict with random forest models
+# Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
+# saveRDS(Y_pred_rf_sur, file = "Data/rf_sur.RDS")
+Y_pred_rf_sur <- readRDS("Data/rf_sur.RDS")
+Y_pred_rf_imp <- pred_rf_imp(valset[,-c(1:2)], mod_rf_imp$mod)
+
+# add mock predictions as placeholder for the conditional methods
+Y_pred_cond <- rep(0, nrow(valset))
+
+# combine into one dataframe
+obs_vs_pred <- data.frame(Y_obs = valset[,"Y"],
+                          Y_sub = Y_pred_sub,
+                          Y_rf_sur = Y_pred_rf_sur,
+                          Y_cond = Y_pred_cond)
+```
+Note for the placeholder data (always predict Y=0) is that there is no discrimination whatsoever.
+
+# Performance measures
+
+List all performance measures to be estimated, justifying their relevance to estimands or other targets. 
+
+We evaluate the predicted outcome risk against the original outcome risk (i.e. the absolute outcome risk that would be obtained if we have no missing values). 
+Calculate:
 
 - Root mean square prediction error;
 
@@ -288,39 +269,22 @@ Finally, across all hold-out patients:
 
 -	Discrimination of (predicted Y | one or more missing predictor values) versus (predicted Y | original predictor values);
 
--	Visual inspection of calibration plot (see plot Gary Collins in Stat med paper min 100 events).
+-	Visual inspection of calibration plot (see plot Gary Collins in Stat med paper, min 100 events).
 
+```{r performance}
+# for the performance it will probably be nicer to make a list with the different methods and map over them
+pred_list <- list(Y_sub = Y_pred_sub,
+                  Y_rf_sur = Y_pred_rf_sur,
+                  Y_cond = Y_pred_cond)
 
+# RMSE
+RMSE <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = valset[, "Y"]))
+RMSE
 
-<!-- discr (c of auc) en calibr: interc en slope -->
-<!-- mse van de predicties -->
-<!-- verschil tussen voorspelde uitkomst en ware uitkomst (vanwege simulatie hier nu mogelijk) -->
+# brier score, for now separate from the RMSE but could be (way) more efficient
+brier <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = valset[, "Y"]))
+brier
+```
+Add: brier with respect to **probability** of Y in valset.
 
-<!-- sensitiviteit en specificiteit niet belangrijk hier -->
-
-## Prediction Models
-
-Methods for prediction model development:
-
-- The prediction model is a flexible regression model (including non-linear effects using RCS (restricted cubic splines) with 4 knots and interaction terms). We also store the means and covariance of all predictor variables (which can be used to generate imputations).
-
-- The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel".
-
-<!-- https://github.com/StatEvidence/MissingDataAndPrediction -->
-
-- The prediction model is a random forest, as implemented by cforest() in the R package party. We generate a certain number of surrogate splits for each node. These splits attempt to mimic the primary split, and thus to achieve similar separation using another (observed) variable. By default set 4 surrogate splits (since we set max 3 missings).
-
-
-Methods for generating absolute risk predictions:
-
-- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean => This strategy should work just fine.
-
-- (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution
-
-- (Only for strategy 1 and 3): Missing values are imputed 50 times by a random draw from their distribution. The resulting 50 absolute risk predictions are then averaged to obtain the final prediction.
-
-- (Only for strategy 2): The appropriate pattern submodel is selected for calculating an absolute risk
-
-- (Only for strategy 3): Missing values are handled using the surrogate splits
-
-
+To do: invite collaborators to Github again.
