@@ -1,6 +1,6 @@
 ---
 title: "SIG Project Real-Time Imputation"
-author: "Steven Nijman, Thomas Debray, Maarten van Smeden, Gerko Vink, Hanne Oberman"
+author: "Steven Nijman*, Hanne Oberman*, Gerko Vink, Thomas Debray, Maarten van Smeden"
 output:
   html_document:
     df_print: paged
@@ -59,7 +59,7 @@ We use a DGM model with:
 
 We decided against the use of a 'real world' variance-covariance matrix for the predictor variables. Initially, we were going to use the SMART data as the basis for our predictor space. But this would result in the same limitations as described in Nijman et al. (2021; i.e., low correlations between predictor variables). 
 
-Therefore, we randomly generated a variance-covariance matrix for the purpose of this study. This matrix^[Note. Maybe add more variance-covariance matrices for sensitivity analyses later.] serves as the basis for each development and/or validation dataset used in this study. 
+Therefore, we randomly generated a variance-covariance matrix for the purpose of this study. This matrix^[Note. Maybe add more variance-covariance matrices for sensitivity analyses later. E.g., add one with 200 predictors.] serves as the basis for each development and/or validation dataset used in this study. 
 
 ```{r varcov}
 # create a variance-covariance matrix with p predictors
@@ -207,7 +207,7 @@ Identify methods to be evaluated and consider whether they are appropriate for e
 
 Methods for prediction model development:
 
-- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 3 knots. We also store the means and covariance of all predictor variables (using package `condmvnorm`, which can be used to generate imputations).
+- Strategy 1: The prediction model is a flexible regression model including non-linear effects using RCS (restricted cubic splines) with 3 knots **check definition, use package `RCS`**. We also store the means and covariance of all predictor variables (using package `condmvnorm`, which can be used to generate imputations).
 
 - Strategy 2: The prediction model is a "box" of submodels: a flexible  regression model is developed for each possible combination of available predictors. If we have 10 predictor variables, this means that we would have to fit 1  + 10 + 45 + 120 + 210 + 252 + 252 + 210 + 120 + 45  + 10 + 1  = 1276 regression models. However, there is no need to estimate all these models. We can first look in the hold-out sample what variable is missing, and then estimate the necessary "submodel". In our case, we estimate just 3 submodels (with 2, 4, or 6 variables observed according to the missing data pattern).
 
@@ -239,6 +239,7 @@ Y_pred_sub <- pred_sub(valset[,-2], submodel_2 = mod_sub_2, submodel_4 = mod_sub
 # Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
 # saveRDS(Y_pred_rf_sur, file = "Data/rf_sur.RDS")
 Y_pred_rf_sur <- readRDS("Data/rf_sur.RDS")
+Y_pred_rf_imp <- pred_rf_imp(valset[,-c(1:2)], mod_rf_imp$mod)
 
 # add mock predictions as placeholder for the conditional methods
 Y_pred_cond <- rep(0, nrow(valset))
@@ -249,7 +250,7 @@ obs_vs_pred <- data.frame(Y_obs = valset[,"Y"],
                           Y_rf_sur = Y_pred_rf_sur,
                           Y_cond = Y_pred_cond)
 ```
-
+Note for the placeholder data (always predict Y=0) is that there is no discrimination whatsoever.
 
 # Performance measures
 
@@ -284,4 +285,6 @@ RMSE
 brier <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = valset[, "Y"]))
 brier
 ```
+Add: brier with respect to **probability** of Y in valset.
 
+To do: invite collaborators to Github again.
