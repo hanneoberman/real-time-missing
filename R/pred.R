@@ -31,7 +31,7 @@ pred_sub <- function(dataset, submodel_2, submodel_4, submodel_6) {
   return(Y_pred[,"Y_pred"])
 }
 
-# function for rf with imputation (missranger)
-pred_rf_imp <- function(dataset, rfmodel_imp){
-  missRanger::missRanger(dataset) %>% predict(rfmodel_imp, data = .)
-}
+# # function for rf with imputation (missranger)
+# pred_rf_imp <- function(dataset, rfmodel_imp){
+#   missRanger::missRanger(dataset) %>% predict(rfmodel_imp, data = .)
+# }

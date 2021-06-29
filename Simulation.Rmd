@@ -235,11 +235,11 @@ valset %>% glimpse()
 # start with easiest method to implement: box of submodels (strategy 2)
 Y_pred_sub <- pred_sub(valset[,-2], submodel_2 = mod_sub_2, submodel_4 = mod_sub_4, submodel_6 = mod_sub_6)
 
-# # predict with random forest models
+# # predict with random forest models (switched off because of computational load)
+# Y_pred_rf_imp <- pred_rf_imp(valset[,-c(1:2)], mod_rf_imp$mod)
 # Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
 # saveRDS(Y_pred_rf_sur, file = "Data/rf_sur.RDS")
 Y_pred_rf_sur <- readRDS("Data/rf_sur.RDS")
-Y_pred_rf_imp <- pred_rf_imp(valset[,-c(1:2)], mod_rf_imp$mod)
 
 # add mock predictions as placeholder for the conditional methods
 Y_pred_cond <- rep(0, nrow(valset))
@@ -287,4 +287,3 @@ brier
 ```
 Add: brier with respect to **probability** of Y in valset.
 
-To do: invite collaborators to Github again.
