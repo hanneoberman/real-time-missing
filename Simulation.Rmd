@@ -18,6 +18,7 @@ Simulation pipeline organized according to the ADEMP approach: Aims, Data-genera
 library("dplyr") #for the pipe operator
 library("ggcorrplot") #for easy visualization of correlations
 library("mvtnorm") #for multivariate normal distributions
+library("purrr") #for vectorized 'for loops'
 library("pROC") #for easy calculation of the auc
 library("mice") #for missing data stuffs
 library("ranger") #for fast random forests
