@@ -218,7 +218,7 @@ Sidenote for strategy 3: Random forests are very susceptible to variations in th
 
 Methods for generating absolute risk predictions:
 
-- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean.
+- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean.^[What to do with categorical predictors?]
 
 - (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution.
 

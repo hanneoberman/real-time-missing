@@ -42,6 +42,7 @@ c_mu <- purrr::map_dfr(1:nrow(x_obs), function(i){c(means[miss] + CDinv %*% (as.
 return(list(cond_means = c_mu, cond_vars = c_var))
 }
 
+# collect all md patterns
 a <- comp_cond(devs = devset, vals = valset, p = 4)
 b <- comp_cond(devs = devset, vals = valset, p = 6)
 c <- comp_cond(devs = devset, vals = valset, p = 8)
@@ -50,4 +51,8 @@ c <- comp_cond(devs = devset, vals = valset, p = 8)
 imp_cond <- rbind(a$cond_means, b$cond_means, c$cond_means) %>% dplyr::arrange(as.numeric(id))
 
 # imputation method 2: Missing values are imputed by a random draw from their conditional multivariate distribution.
-# mvtnorm::rmvnorm()
+## make this a function to apply to all md patterns and repeat for method 3 with n = 50
+a2 <- purrr::map_dfr(1:nrow(a$cond_mean), function(i){mvtnorm::rmvnorm(n = 1, mean = as.numeric(a$cond_means[i, 8:11]), sigma = as.matrix(a$cond_vars)) %>% 
+    setNames(names(a$cond_means)[8:11]) %>% 
+    data.frame()})
+a3 <- cbind(a$cond_means[, 1:7], a2)
