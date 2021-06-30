@@ -39,6 +39,7 @@ set.seed(1)
 # functions
 source("./R/DGM.R") #data generating mechanism
 source("./R/fit.R") #fit models on complete data
+source("./R/imp.R") #impute missing data
 source("./R/pred.R") #predict outcome variable from incomplete data
 source("./R/perf.R") #compute performance measures for each method
 ```
@@ -244,6 +245,10 @@ Y_pred_rf_sur <- readRDS("Data/rf_sur.RDS")
 
 # add mock predictions as placeholder for the conditional methods
 Y_pred_cond <- rep(0, nrow(valset))
+
+# impute the data for all md patterns
+imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset, valset, p = .x))
+Y_pred_mean <- pred_mean(imp_all)
 
 # combine into one dataframe
 obs_vs_pred <- data.frame(Y_obs = valset[,"Y"],
