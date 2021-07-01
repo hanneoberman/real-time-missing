@@ -250,11 +250,11 @@ Y_pred_cond <- rep(0, nrow(valset))
 imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset, valset, p = .x))
 Y_pred_mean <- pred_mean(imp_all)
 
-# combine into one dataframe
-obs_vs_pred <- data.frame(Y_obs = valset[,"Y"],
-                          Y_sub = Y_pred_sub,
-                          Y_rf_sur = Y_pred_rf_sur,
-                          Y_cond = Y_pred_cond)
+# # combine into one dataframe
+# obs_vs_pred <- data.frame(Y_obs = valset[,"Y"],
+#                           Y_sub = Y_pred_sub,
+#                           Y_rf_sur = Y_pred_rf_sur,
+#                           Y_cond = Y_pred_cond)
 ```
 Note for the placeholder data (always predict Y=0) is that there is no discrimination whatsoever.
 

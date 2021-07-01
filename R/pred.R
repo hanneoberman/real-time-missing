@@ -56,11 +56,10 @@ pred_mean <- function(imp_list) {
 }
 
 # function for strategy 1, method 2 and 3 (conditional draw imp)
-# a <-imp_all[[1]]$imp_draw[[1]] 
-# b <- a %>% 
-#   predict(
-#   mod_true$mod,
-#   newdata = a[,-c(11:12)],
-#   type = "response",
-#   terms = c("Y", "id")
-# )
+a <- imp_all[[1]]$imp_draw[[1]]
+b <- predict(
+  mod_true$mod,
+  newdata = a[, -c(11:12)],
+  type = "response",
+  terms = c("Y", "id")
+)
