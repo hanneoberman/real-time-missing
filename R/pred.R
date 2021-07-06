@@ -50,32 +50,33 @@ pred_mean <- function(imp_list) {
       terms = c("Y", "id")
     ) %>%
       data.frame(Y_pred = ., id = as.numeric(names(.)))
-  }) %>% dplyr::arrange()
+  }) %>% dplyr::arrange(id)
   # output
   return(Y_pred[, "Y_pred"])
 }
 
 # function for strategy 1, method 2 and 3 (conditional draw imp)
+pred_draw <- function(imp_list) {
+  # for each md pattern
+  Y_pred <- map_dfr(1:3, function(p) {
+    # for each observation
+    map_dfr(imp_all[[p]]$imp_draw, function(i) {
+      # for each draw predict Y
+      predict(mod_true$mod,
+              newdata = i[,-c(11:12)],
+              type = "response") %>%
+        # split single and multiple draws
+        split_pred() %>%
+        c(i[1, 11], .) %>%
+        setNames(c("id", "sing", "mult"))
+    })
+  }) %>% dplyr::arrange(id)
+  return(list(sing = Y_pred$sing, mult = Y_pred$mult))
+}
 
-# helper function to average the draws from the distribution of predictions after imputation
-split_pred <- function(preds) {c(preds[1], mean(preds[2:length(preds)]))} 
-
-a <- imp_all[[1]]$imp_draw#[[2]]
-
-b <- map_dfr(a, function(i){suppressWarnings(predict(mod_true$mod,
-             newdata = i[,-c(11:12)],
-             type = "response")) %>% 
-  split_pred() %>% 
-  c(i[1,11], .) %>% 
-  setNames(c("id", "samp", "dist"))})
-
-# a <- imp_all[[1]]$imp_draw[[2]]
-# 
-# b <- predict(mod_true$mod,
-#              newdata = a[,-c(11:12)],
-#              type = "response") %>% 
-#   split_pred() %>% 
-#   c(a[1,11]) %>% 
-#   setNames(c("samp", "dist", "id"))
-# pred_samp <- b[1,]
-# pred_dist <- data.frame(Y_pred = mean(b[2:nrow(b), 1]), id = b[2,2])
+# helper function for pred_draw() to split single and multiple imp methods
+# averages the draws from the distribution of predictions after multiple imp
+split_pred <-
+  function(preds) {
+    c(preds[1], mean(preds[2:length(preds)]))
+  }

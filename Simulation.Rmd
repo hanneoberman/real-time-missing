@@ -47,12 +47,13 @@ source("./R/perf.R") #compute performance measures for each method
 ```{r testrun, eval=FALSE, include=FALSE}
 # run this chuck only for development of new functions
 
-# define DGM
+# define DGM and missingness parameters
 varcov <- define_varcov(p = 10)
 linear_betas <- runif(nrow(varcov), -1, 1)
 non_linear_betas <- runif(nrow(varcov), -0.1, 0.1)
+miss_par <- define_miss(p = nrow(varcov))
 
-# fit models on devset
+# create devset and fit models
 devset <-
   generate_sample(
     sample_size = 10000,
@@ -68,7 +69,7 @@ mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2)
 mod_rf_imp <- fit_rf_imp(devset)
 # mod_rf_sur <- fit_rf_sur(devset) #too slow!
 
-# make incomplete valset
+# create incomplete valset
 valset <-
   generate_sample(
     sample_size = 20000,
@@ -76,13 +77,22 @@ valset <-
     linear_betas,
     non_linear_betas,
     interaction = TRUE
-  )
-miss_par <- define_miss(p = nrow(varcov))
-valset <- create_miss(valset, miss_par)
+  ) %>% create_miss(., miss_par)
 
-# impute valset
+# impute valset and predict the outcome
 imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset, valset, p = .x))
+Y_pred_mean <- suppressWarnings(pred_mean(imp_all))
+Y_pred_draw <- suppressWarnings(pred_draw(imp_all))
+Y_pred_sub <- pred_sub(valset[,-2], mod_sub_2, mod_sub_4, mod_sub_6)
+Y_pred_rf_sur <- rep(0, nrow(valset)) #too slow! 
 
+# test performance function on list of predictions
+pred_list <- list(Y_sub = Y_pred_sub,
+                  Y_rf_sur = Y_pred_rf_sur,
+                  Y_imp_mean = Y_pred_mean,
+                  Y_imp_sing = Y_pred_draw$sing,
+                  Y_imp_mult = Y_pred_draw$mult)
+(RMSE <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = valset[, "Y"])))
 ```
 
 # Aims
@@ -280,26 +290,20 @@ valset %>% glimpse()
 # this includes the observed values of the outcome (Y) and the number of missing predictor values, we'll exclude Y in the predictions
 
 # start with easiest method to implement: box of submodels (strategy 2)
-Y_pred_sub <- pred_sub(valset[,-2], submodel_2 = mod_sub_2, submodel_4 = mod_sub_4, submodel_6 = mod_sub_6)
+Y_pred_sub <- pred_sub(valset[,-2], mod_sub_2, mod_sub_4, mod_sub_6)
 
 # # predict with random forest models (switched off because of computational load)
+Y_pred_rf_sur <- rep(0, nrow(valset))
 # Y_pred_rf_imp <- pred_rf_imp(valset[,-c(1:2)], mod_rf_imp$mod)
 # Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
 # saveRDS(Y_pred_rf_sur, file = "Data/rf_sur.RDS")
-Y_pred_rf_sur <- readRDS("Data/rf_sur.RDS")
-
-# add mock predictions as placeholder for the conditional methods
-Y_pred_cond <- rep(0, nrow(valset))
+# readRDS("Data/rf_sur.RDS")
 
 # impute the data for all md patterns
 imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset, valset, p = .x))
-Y_pred_mean <- pred_mean(imp_all)
+Y_pred_mean <- suppressWarnings(pred_mean(imp_all))
+Y_pred_draw <- suppressWarnings(pred_draw(imp_all))
 
-# # combine into one dataframe
-# obs_vs_pred <- data.frame(Y_obs = valset[,"Y"],
-#                           Y_sub = Y_pred_sub,
-#                           Y_rf_sur = Y_pred_rf_sur,
-#                           Y_cond = Y_pred_cond)
 ```
 Note for the placeholder data (always predict Y=0) is that there is no discrimination whatsoever.
 
@@ -326,7 +330,9 @@ Finally, across all hold-out patients:
 # for the performance it will probably be nicer to make a list with the different methods and map over them
 pred_list <- list(Y_sub = Y_pred_sub,
                   Y_rf_sur = Y_pred_rf_sur,
-                  Y_cond = Y_pred_cond)
+                  Y_imp_mean = Y_pred_mean,
+                  Y_imp_sing = Y_pred_draw$sing,
+                  Y_imp_mult = Y_pred_draw$mult)
 
 # RMSE
 RMSE <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = valset[, "Y"]))
