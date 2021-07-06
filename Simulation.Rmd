@@ -44,6 +44,47 @@ source("./R/pred.R") #predict outcome variable from incomplete data
 source("./R/perf.R") #compute performance measures for each method
 ```
 
+```{r testrun, eval=FALSE, include=FALSE}
+# run this chuck only for development of new functions
+
+# define DGM
+varcov <- define_varcov(p = 10)
+linear_betas <- runif(nrow(varcov), -1, 1)
+non_linear_betas <- runif(nrow(varcov), -0.1, 0.1)
+
+# fit models on devset
+devset <-
+  generate_sample(
+    sample_size = 10000,
+    covariance_matrix = varcov,
+    linear_bs = linear_betas,
+    non_linear_bs = non_linear_betas,
+    interaction = TRUE
+  )
+mod_true <- fit_true(devset)
+mod_sub_6 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4 + X5 + X6)
+mod_sub_4 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4)
+mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2)
+mod_rf_imp <- fit_rf_imp(devset)
+# mod_rf_sur <- fit_rf_sur(devset) #too slow!
+
+# make incomplete valset
+valset <-
+  generate_sample(
+    sample_size = 20000,
+    varcov,
+    linear_betas,
+    non_linear_betas,
+    interaction = TRUE
+  )
+miss_par <- define_miss(p = nrow(varcov))
+valset <- create_miss(valset, miss_par)
+
+# impute valset
+imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset, valset, p = .x))
+
+```
+
 # Aims
 
 This document contain the set-up of our SIG project titled "An evaluation of 'real-time' missing data handling in machine learning and prevailing statistical models". The aim is to compare different strategies for developing prediction models that can handle the presence of missing values real time in a single patient.
@@ -69,8 +110,8 @@ varcov <- define_varcov(p = 10)
 ggcorrplot::ggcorrplot(cov2cor(varcov), type = "lower", lab = TRUE)
 
 # create vectors with regression coefficients for linear and non-linear effects
-linear_betas <- runif(nrow(varcov),-1, 1)
-non_linear_betas <- runif(nrow(varcov),-0.1, 0.1)
+linear_betas <- runif(nrow(varcov), -1, 1)
+non_linear_betas <- runif(nrow(varcov), -0.1, 0.1)
 ```
 
 We use the 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. For additional complexity, we add one log-transformation (the natural logarithm of the absolute value of the second predictor).
@@ -83,7 +124,13 @@ We use a sample size of 10.000 in the development sets. One such set is generate
 ```{r devset}
 # let's generate some data 
 devset <-
-  generate_sample(sample_size = 10000, covariance_matrix = varcov, linear_bs = linear_betas, non_linear_bs = non_linear_betas, interaction = TRUE)
+  generate_sample(
+    sample_size = 10000,
+    covariance_matrix = varcov,
+    linear_bs = linear_betas,
+    non_linear_bs = non_linear_betas,
+    interaction = TRUE
+  )
 
 # what do the data look like?
 glimpse(devset)
@@ -97,9 +144,9 @@ The aim is to have a prevalence of about 0.15. In this dev set, the prevalence o
 mod_true <- fit_true(devset)
 
 # box of submodels
-mod_sub_6 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4 + X5 + X6) 
-mod_sub_4 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4) 
-mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2) 
+mod_sub_6 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4 + X5 + X6)
+mod_sub_4 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4)
+mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2)
 
 # random forest models with imputation and with surrogate splits
 mod_rf_imp <- fit_rf_imp(devset)
@@ -111,38 +158,36 @@ To see how well these models fit the complete data, we calculate the out of samp
 ```{r auc, echo=FALSE, warning=FALSE}
 # test all models on new data to compute the out of sample auc
 aucset <-
-  generate_sample(sample_size = 10000, varcov, linear_betas, non_linear_betas, interaction = TRUE)
+  generate_sample(
+    sample_size = 10000,
+    varcov,
+    linear_betas,
+    non_linear_betas,
+    interaction = TRUE
+  )
 
 # logistic model
 auc_true <-
-    pROC::roc(
-      Y ~ prob,
-      data = cbind(aucset, prob = predict(mod_true$mod, newdata = aucset[,-1])),
-      quiet = TRUE
-    )$auc
+  pROC::roc(Y ~ prob,
+            data = cbind(aucset, prob = predict(mod_true$mod, newdata = aucset[, -1])),
+            quiet = TRUE)$auc
 # box of submodels
 auc_sub_2 <-
-    pROC::roc(
-      Y ~ prob,
-      data = cbind(aucset, prob = predict(mod_sub_2$mod, newdata =  aucset[,-1])),
-      quiet = TRUE
-    )$auc
+  pROC::roc(Y ~ prob,
+            data = cbind(aucset, prob = predict(mod_sub_2$mod, newdata =  aucset[, -1])),
+            quiet = TRUE)$auc
 auc_sub_4 <-
-    pROC::roc(
-      Y ~ prob,
-      data = cbind(aucset, prob = predict(mod_sub_4$mod, newdata =  aucset[,-1])),
-      quiet = TRUE
-    )$auc
+  pROC::roc(Y ~ prob,
+            data = cbind(aucset, prob = predict(mod_sub_4$mod, newdata =  aucset[, -1])),
+            quiet = TRUE)$auc
 auc_sub_6 <-
-    pROC::roc(
-      Y ~ prob,
-      data = cbind(aucset, prob = predict(mod_sub_6$mod, newdata =  aucset[,-1])),
-      quiet = TRUE
-    )$auc
+  pROC::roc(Y ~ prob,
+            data = cbind(aucset, prob = predict(mod_sub_6$mod, newdata =  aucset[, -1])),
+            quiet = TRUE)$auc
 # rf models
 auc_rf_imp <-
   pROC::roc(Y ~ prob,
-            data = cbind(aucset, prob = predict(mod_rf_imp$mod, data = aucset[,-1])[["predictions"]]),
+            data = cbind(aucset, prob = predict(mod_rf_imp$mod, data = aucset[, -1])[["predictions"]]),
             quiet = TRUE)$auc
 # pred_rf <-
 #   predict(rf$mod, data = aucset) %>% .$predictions %>% cbind(aucset, prob = .)
