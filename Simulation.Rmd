@@ -18,6 +18,7 @@ Simulation pipeline organized according to the ADEMP approach: Aims, Data-genera
 library("dplyr") #for the pipe operator
 library("ggcorrplot") #for easy visualization of correlations
 library("mvtnorm") #for multivariate normal distributions
+library("purrr") #for vectorized 'for loops'
 library("pROC") #for easy calculation of the auc
 library("mice") #for missing data stuffs
 library("ranger") #for fast random forests
@@ -38,8 +39,60 @@ set.seed(1)
 # functions
 source("./R/DGM.R") #data generating mechanism
 source("./R/fit.R") #fit models on complete data
+source("./R/imp.R") #impute missing data
 source("./R/pred.R") #predict outcome variable from incomplete data
 source("./R/perf.R") #compute performance measures for each method
+```
+
+```{r testrun, eval=FALSE, include=FALSE}
+# run this chuck only for development of new functions
+
+# define DGM and missingness parameters
+varcov <- define_varcov(p = 10)
+linear_betas <- runif(nrow(varcov), -1, 1)
+non_linear_betas <- runif(nrow(varcov), -0.1, 0.1)
+miss_par <- define_miss(p = nrow(varcov))
+
+# create devset and fit models
+devset <-
+  generate_sample(
+    sample_size = 10000,
+    covariance_matrix = varcov,
+    linear_bs = linear_betas,
+    non_linear_bs = non_linear_betas,
+    interaction = TRUE
+  )
+mod_true <- fit_true(devset)
+mod_sub_6 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4 + X5 + X6)
+mod_sub_4 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4)
+mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2)
+mod_rf_imp <- fit_rf_imp(devset)
+# mod_rf_sur <- fit_rf_sur(devset) #too slow!
+
+# create incomplete valset
+valset <-
+  generate_sample(
+    sample_size = 20000,
+    varcov,
+    linear_betas,
+    non_linear_betas,
+    interaction = TRUE
+  ) %>% create_miss(., miss_par)
+
+# impute valset and predict the outcome
+imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset, valset, p = .x))
+Y_pred_mean <- suppressWarnings(pred_mean(imp_all))
+Y_pred_draw <- suppressWarnings(pred_draw(imp_all))
+Y_pred_sub <- pred_sub(valset[,-2], mod_sub_2, mod_sub_4, mod_sub_6)
+Y_pred_rf_sur <- rep(0, nrow(valset)) #too slow! 
+
+# test performance function on list of predictions
+pred_list <- list(Y_sub = Y_pred_sub,
+                  Y_rf_sur = Y_pred_rf_sur,
+                  Y_imp_mean = Y_pred_mean,
+                  Y_imp_sing = Y_pred_draw$sing,
+                  Y_imp_mult = Y_pred_draw$mult)
+(RMSE <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = valset[, "Y"])))
 ```
 
 # Aims
@@ -67,8 +120,8 @@ varcov <- define_varcov(p = 10)
 ggcorrplot::ggcorrplot(cov2cor(varcov), type = "lower", lab = TRUE)
 
 # create vectors with regression coefficients for linear and non-linear effects
-linear_betas <- runif(nrow(varcov),-1, 1)
-non_linear_betas <- runif(nrow(varcov),-0.1, 0.1)
+linear_betas <- runif(nrow(varcov), -1, 1)
+non_linear_betas <- runif(nrow(varcov), -0.1, 0.1)
 ```
 
 We use the 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. For additional complexity, we add one log-transformation (the natural logarithm of the absolute value of the second predictor).
@@ -81,7 +134,13 @@ We use a sample size of 10.000 in the development sets. One such set is generate
 ```{r devset}
 # let's generate some data 
 devset <-
-  generate_sample(sample_size = 10000, covariance_matrix = varcov, linear_bs = linear_betas, non_linear_bs = non_linear_betas, interaction = TRUE)
+  generate_sample(
+    sample_size = 10000,
+    covariance_matrix = varcov,
+    linear_bs = linear_betas,
+    non_linear_bs = non_linear_betas,
+    interaction = TRUE
+  )
 
 # what do the data look like?
 glimpse(devset)
@@ -95,9 +154,9 @@ The aim is to have a prevalence of about 0.15. In this dev set, the prevalence o
 mod_true <- fit_true(devset)
 
 # box of submodels
-mod_sub_6 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4 + X5 + X6) 
-mod_sub_4 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4) 
-mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2) 
+mod_sub_6 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4 + X5 + X6)
+mod_sub_4 <- fit_sub(devset, Y ~ X1 + X2 + X3 + X4)
+mod_sub_2 <- fit_sub(devset, Y ~ X1 + X2)
 
 # random forest models with imputation and with surrogate splits
 mod_rf_imp <- fit_rf_imp(devset)
@@ -109,38 +168,36 @@ To see how well these models fit the complete data, we calculate the out of samp
 ```{r auc, echo=FALSE, warning=FALSE}
 # test all models on new data to compute the out of sample auc
 aucset <-
-  generate_sample(sample_size = 10000, varcov, linear_betas, non_linear_betas, interaction = TRUE)
+  generate_sample(
+    sample_size = 10000,
+    varcov,
+    linear_betas,
+    non_linear_betas,
+    interaction = TRUE
+  )
 
 # logistic model
 auc_true <-
-    pROC::roc(
-      Y ~ prob,
-      data = cbind(aucset, prob = predict(mod_true$mod, newdata = aucset[,-1])),
-      quiet = TRUE
-    )$auc
+  pROC::roc(Y ~ prob,
+            data = cbind(aucset, prob = predict(mod_true$mod, newdata = aucset[, -1])),
+            quiet = TRUE)$auc
 # box of submodels
 auc_sub_2 <-
-    pROC::roc(
-      Y ~ prob,
-      data = cbind(aucset, prob = predict(mod_sub_2$mod, newdata =  aucset[,-1])),
-      quiet = TRUE
-    )$auc
+  pROC::roc(Y ~ prob,
+            data = cbind(aucset, prob = predict(mod_sub_2$mod, newdata =  aucset[, -1])),
+            quiet = TRUE)$auc
 auc_sub_4 <-
-    pROC::roc(
-      Y ~ prob,
-      data = cbind(aucset, prob = predict(mod_sub_4$mod, newdata =  aucset[,-1])),
-      quiet = TRUE
-    )$auc
+  pROC::roc(Y ~ prob,
+            data = cbind(aucset, prob = predict(mod_sub_4$mod, newdata =  aucset[, -1])),
+            quiet = TRUE)$auc
 auc_sub_6 <-
-    pROC::roc(
-      Y ~ prob,
-      data = cbind(aucset, prob = predict(mod_sub_6$mod, newdata =  aucset[,-1])),
-      quiet = TRUE
-    )$auc
+  pROC::roc(Y ~ prob,
+            data = cbind(aucset, prob = predict(mod_sub_6$mod, newdata =  aucset[, -1])),
+            quiet = TRUE)$auc
 # rf models
 auc_rf_imp <-
   pROC::roc(Y ~ prob,
-            data = cbind(aucset, prob = predict(mod_rf_imp$mod, data = aucset[,-1])[["predictions"]]),
+            data = cbind(aucset, prob = predict(mod_rf_imp$mod, data = aucset[, -1])[["predictions"]]),
             quiet = TRUE)$auc
 # pred_rf <-
 #   predict(rf$mod, data = aucset) %>% .$predictions %>% cbind(aucset, prob = .)
@@ -217,7 +274,7 @@ Sidenote for strategy 3: Random forests are very susceptible to variations in th
 
 Methods for generating absolute risk predictions:
 
-- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean.
+- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean.^[What to do with categorical predictors?]
 
 - (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution.
 
@@ -233,22 +290,20 @@ valset %>% glimpse()
 # this includes the observed values of the outcome (Y) and the number of missing predictor values, we'll exclude Y in the predictions
 
 # start with easiest method to implement: box of submodels (strategy 2)
-Y_pred_sub <- pred_sub(valset[,-2], submodel_2 = mod_sub_2, submodel_4 = mod_sub_4, submodel_6 = mod_sub_6)
+Y_pred_sub <- pred_sub(valset[,-2], mod_sub_2, mod_sub_4, mod_sub_6)
 
-# # predict with random forest models
+# # predict with random forest models (switched off because of computational load)
+Y_pred_rf_sur <- rep(0, nrow(valset))
+# Y_pred_rf_imp <- pred_rf_imp(valset[,-c(1:2)], mod_rf_imp$mod)
 # Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
 # saveRDS(Y_pred_rf_sur, file = "Data/rf_sur.RDS")
-Y_pred_rf_sur <- readRDS("Data/rf_sur.RDS")
-Y_pred_rf_imp <- pred_rf_imp(valset[,-c(1:2)], mod_rf_imp$mod)
+# readRDS("Data/rf_sur.RDS")
 
-# add mock predictions as placeholder for the conditional methods
-Y_pred_cond <- rep(0, nrow(valset))
+# impute the data for all md patterns
+imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset, valset, p = .x))
+Y_pred_mean <- suppressWarnings(pred_mean(imp_all))
+Y_pred_draw <- suppressWarnings(pred_draw(imp_all))
 
-# combine into one dataframe
-obs_vs_pred <- data.frame(Y_obs = valset[,"Y"],
-                          Y_sub = Y_pred_sub,
-                          Y_rf_sur = Y_pred_rf_sur,
-                          Y_cond = Y_pred_cond)
 ```
 Note for the placeholder data (always predict Y=0) is that there is no discrimination whatsoever.
 
@@ -275,7 +330,9 @@ Finally, across all hold-out patients:
 # for the performance it will probably be nicer to make a list with the different methods and map over them
 pred_list <- list(Y_sub = Y_pred_sub,
                   Y_rf_sur = Y_pred_rf_sur,
-                  Y_cond = Y_pred_cond)
+                  Y_imp_mean = Y_pred_mean,
+                  Y_imp_sing = Y_pred_draw$sing,
+                  Y_imp_mult = Y_pred_draw$mult)
 
 # RMSE
 RMSE <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = valset[, "Y"]))
@@ -287,4 +344,3 @@ brier
 ```
 Add: brier with respect to **probability** of Y in valset.
 
-To do: invite collaborators to Github again.
