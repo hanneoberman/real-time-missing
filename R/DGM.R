@@ -36,7 +36,7 @@ generate_sample <-
     Y <- rbinom(n = length(p),
                 size = 1,
                 prob = p)
-    dat <- dat %>% data.frame() %>% cbind(Y, .)
+    dat <- dat %>% data.frame() %>% cbind(Y = Y, Y_prob = p, .)
     return(dat)
   }
 
