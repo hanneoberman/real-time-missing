@@ -40,12 +40,12 @@ pred_sub <- function(dataset,
 # }
 
 # function for strategy 1, method 1 (conditional mean imp)
-pred_mean <- function(imp_list) {
+pred_mean <- function(imp_list, p = 10) {
   # predict Y for each md pattern
   Y_pred <- map_dfr(imp_list, ~ {
     predict(
       mod_true$mod,
-      newdata = .x$imp_mean[,-c(11:12)],
+      newdata = .x$imp_mean[,-c(p + 1, p + 2)],
       type = "response",
       terms = c("Y", "id")
     ) %>%
@@ -56,18 +56,18 @@ pred_mean <- function(imp_list) {
 }
 
 # function for strategy 1, method 2 and 3 (conditional draw imp)
-pred_draw <- function(imp_list) {
+pred_draw <- function(imp_list, p = 10) {
   # for each md pattern
-  Y_pred <- map_dfr(1:3, function(p) {
+  Y_pred <- map_dfr(1:3, function(md) {
     # for each observation
-    map_dfr(imp_all[[p]]$imp_draw, function(i) {
+    map_dfr(imp_all[[md]]$imp_draw, function(i) {
       # for each draw predict Y
       predict(mod_true$mod,
-              newdata = i[,-c(11:12)],
+              newdata = i[,-c(p + 1, p + 2)],
               type = "response") %>%
         # split single and multiple draws
         split_pred() %>%
-        c(i[1, 11], .) %>%
+        c(i[1, p+1], .) %>%
         setNames(c("id", "sing", "mult"))
     })
   }) %>% dplyr::arrange(id)

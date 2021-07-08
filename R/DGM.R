@@ -36,7 +36,7 @@ generate_sample <-
     Y <- rbinom(n = length(p),
                 size = 1,
                 prob = p)
-    dat <- dat %>% data.frame() %>% cbind(Y = Y, Y_prob = p, .)
+    dat <- dat %>% data.frame() %>% cbind(Y_prob = p, Y = Y, .)
     return(dat)
   }
 
@@ -54,7 +54,7 @@ define_miss <- function(p = 10){
   # eight var missing
   pat[9:12,3:p] <- 0
   # output
-  return(list(miss_pat = cbind(Y=1, pat), miss_type = MAR_types))
+  return(list(miss_pat = cbind(Y_prob = 1, Y = 1, pat), miss_type = MAR_types))
 }
 
 create_miss <- function(dataset, param){

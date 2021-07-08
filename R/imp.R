@@ -1,13 +1,13 @@
 # functions for imputing the missing values in an incomplete set
 
 # helper function to compute conditional mean and var for imputation
-comp_cond <- function(devs, vals, p) {
+comp_cond <- function(devs, vals, m, p) {
   # process inputs
-  means <- colMeans(devs[, -1])
-  vcov <- cov(devs[, -1])
+  means <- colMeans(devs)
+  vcov <- cov(devs)
   miss <- (nrow(vcov) - p + 1):nrow(vcov)
   obs <-  1:(nrow(vcov) - p)
-  x_obs <- vals[vals$p_miss == p, -c(1:2)]
+  x_obs <- vals[vals$p_miss == p, -1]
   # compute
   B <- vcov[miss, miss]
   C <- vcov[miss, obs, drop = FALSE]
@@ -26,7 +26,7 @@ comp_cond <- function(devs, vals, p) {
   # impute draw
   imp_draw <-
     purrr::map(1:nrow(c_mu), function(i) {
-      MASS::mvrnorm(11, mu = as.numeric(c_mu[i, c(paste0("X", miss))]), Sigma = c_var) %>%
+      MASS::mvrnorm(m, mu = as.numeric(c_mu[i, c(paste0("X", miss))]), Sigma = c_var) %>%
         cbind(x_obs[i, obs], ., c_mu[i, c("id", "p_miss")], row.names = NULL)
     })
   # outputs
