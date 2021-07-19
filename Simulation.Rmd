@@ -16,6 +16,7 @@ Simulation pipeline organized according to the ADEMP approach: Aims, Data-genera
 ```{r setup, message = FALSE, warning = FALSE, include = FALSE}
 # environment
 library("dplyr") #for the pipe operator
+library("ggplot2") #for plotting
 library("ggcorrplot") #for easy visualization of correlations
 library("mvtnorm") #for multivariate normal distributions
 library("purrr") #for vectorized 'for loops'
@@ -95,8 +96,21 @@ pred_list <- list(Y_prob = valset$Y_prob,
                   Y_imp_sing = Y_pred_draw$sing,
                   Y_imp_mult = Y_pred_draw$mult)
 (RMSE <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = pred_list[["Y_prob"]])))
+rms::val.prob(p = Y_pred_sub, y = valset$Y_prob)
+rms::val.prob(p = Y_pred_draw$mult, y = valset$Y)
+
 # check if the object would be too big after replicating the simulation
 # test <- rep(list(pred_list), 1000)
+
+# plot calibration
+plotdat <- data.frame(obs = rep(pred_list$Y_prob,4), pred = c(pred_list$Y_sub, pred_list$Y_imp_mean, pred_list$Y_imp_sing, pred_list$Y_imp_mult), method = c("surrogate", "cond.imp", "sing.imp", "mult.imp"))
+ggplot(plotdat, aes(x = pred, y = obs, color = method)) +
+  geom_point(alpha = 0.01) +
+  geom_smooth(fullrange = T) + 
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+  facet_wrap(~method) + 
+  theme_classic() + 
+  lims(x = c(0,1), y = c(0,1))
 ```
 
 # Aims
@@ -352,6 +366,7 @@ RMSE
 # brier score, for now separate from the RMSE but could be (way) more efficient
 brier <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = valset[, "Y"]))
 brier
+
 ```
 Add: brier with respect to **probability** of Y in valset.
 
