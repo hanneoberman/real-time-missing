@@ -40,7 +40,7 @@ pred_sub <- function(dataset,
 # }
 
 # function for strategy 1, method 1 (conditional mean imp)
-pred_mean <- function(imp_list, true_mod, rf_mod, p = 10) {
+pred_mean <- function(imp_list, true_mod, p = 10) {
   # predict Y for each md pattern
   Y_pred <- map_dfr(imp_list, ~ {
     predict(
