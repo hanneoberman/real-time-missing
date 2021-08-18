@@ -10,6 +10,25 @@ output:
 
 Simulation pipeline organized according to the ADEMP approach: Aims, Data-generating mechanisms, Methods, Estimands, Performance measures.
 
+TODO:
+
+- Check where else it says "TODO" and "Add" throughout this file
+
+- Add motivating example with MIMIC data (first impute once with some non-parametric model like an AE, then fit some prediction model on the completed population data)
+
+- Choose a nice logistic prediction model for the motivating example, like a certain diagnosis or 48h mortality (not 30 day mortality, because then you need time-to-event models)
+
+- Rename mean imp to CMI
+
+- Rename 'true' model to spline model
+
+- Add rf model after imputation
+
+- Rerun sim without higher order terms    
+
+- After running the simulation, check convergence of the population diagnostics to see if 1000 repetitions was enough
+
+
 ![](./www/simulationdiagram.png)
 
 
@@ -58,7 +77,7 @@ This document contain the set-up of our SIG project titled "An evaluation of 're
 
 # Data-Generating Mechanisms
 
-We use design-based simulation, with a single data-generating mechanism for the development data and validation sets. The development set is used as-is; the validation set is subsequently 'amputed'.
+We use model-based simulation, with a single data-generating mechanism for the development data and validation sets. The development set is used as-is; the validation set is subsequently 'amputed'.
 
 ## DGM model
 
@@ -82,6 +101,9 @@ non_linear_betas <- runif(nrow(varcov), -0.1, 0.1)
 ```
 
 We use the 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. For additional complexity, we add one log-transformation (the natural logarithm of the absolute value of the second predictor).
+
+TODO: check c-stat [.6-.9]
+TODO: report the betas
 
 
 ## Development set
@@ -116,7 +138,7 @@ mod_sub_2 <- fit_sub(devset[,-1], Y ~ X1 + X2)
 
 # random forest models with imputation and with surrogate splits
 mod_rf_imp <- fit_rf_imp(devset[,-1])
-mod_rf_sur <- fit_rf_sur(devset[,-1])
+# mod_rf_sur <- fit_rf_sur(devset[,-1])
 ```
 
 
@@ -173,7 +195,7 @@ Sidenote for strategy 3: Random forests are very susceptible to variations in th
 
 The five methods for dealing with missing values are:
 
-- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean.^[What to do with categorical predictors?]
+- (Only for strategy 1 and 3): Missing values are imputed by their conditional mean.^[What to do with categorical predictors? Make dummy variables for each level? See Nijman et al paper!]
 
 - (Only for strategy 1 and 3): Missing values are imputed by a random draw from their conditional multivariate distribution.
 
@@ -191,7 +213,7 @@ valset %>% glimpse()
 # for evaluation purposes, this includes the outcome (Y = observed outcome; Y_prob = hypothetical probability of the outcome) and the number of missing predictor values
 
 # impute the data, split by number of missing variables for computational efficiency
-imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset[,-c(1:2)], valset[,-c(2:3)], m = 11, p = .x))
+imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset[,-c(1:2)], valset[,-c(2:3)], m = 51, p = .x))
 # TODO: set number of imputations to 51 in actual simulation
 ```
 
@@ -236,7 +258,11 @@ Finally, across all hold-out patients:
 
 -	Visual inspection of calibration plot (see plot Gary Collins in Stat med paper, min 100 events).
 
-Add: **MAPE, RMSPE, mean absolute distance wrt real prob., think about AIC and calibration on population level while we're interested in individual level.**
+TODO: Add **MAPE, RMSPE, mean absolute distance wrt real prob., think about AIC and calibration intercept and calibration slope on population level while we're interested in individual level.**
+
+TODO: add real intercept (this one is re-estimated) using logistic model (en met offset eromheen voor intercept).
+
+root mean sq distance van log calib slope (ideaal is 0, dus verder is slechter). bijv van lasso hele hoge variantie terwijl gem perfect is.
 
 ```{r performance}
 # combine the predictions from the different methods
@@ -248,11 +274,11 @@ pred_list <- list(Y_prob = valset$Y_prob,
                   Y_imp_sing = Y_pred_draw$sing,
                   Y_imp_mult = Y_pred_draw$mult)
 # RMSE
-(RMSE_obs <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = pred_list[["Y"]])))
-# (RMSE_prob <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = pred_list[["Y_prob"]])))
+(RMSE_obs <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = pred_list[["Y_obs"]])))
+(RMSE_prob <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = pred_list[["Y_prob"]])))
 
 # brier score
-# (brier_obs <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = valset[, "Y"])))
+# (brier_obs <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = valset[, "Y_obs"])))
 (brier_prob <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = pred_list[["Y_prob"]])))
 # Let op: Komt de kans richting het gemiddelde? Zie prestatie van 'methode' met alleen 0en als predicted prob invullen.
 
@@ -260,7 +286,7 @@ rms::val.prob(p = Y_pred_sub, y = valset$Y)
 rms::val.prob(p = Y_pred_draw$mult, y = valset$Y)
 
 # plot calibration
-plotdat <- data.frame(obs = rep(pred_list$Y_prob,4), pred = c(pred_list$Y_sub, pred_list$Y_imp_mean, pred_list$Y_imp_sing, pred_list$Y_imp_mult), method = c("surrogate", "cond.imp", "sing.imp", "mult.imp"))
+plotdat <- data.frame(obs = rep(pred_list$Y_prob,4), pred = c(pred_list$Y_sub, pred_list$Y_imp_mean, pred_list$Y_imp_sing, pred_list$Y_imp_mult), method = c("submodel", "cond.imp", "sing.imp", "mult.imp"))
 ggplot(plotdat, aes(x = pred, y = obs, color = method)) +
   geom_point(alpha = 0.01) +
   geom_smooth(fullrange = T) + 
@@ -270,16 +296,3 @@ ggplot(plotdat, aes(x = pred, y = obs, color = method)) +
   lims(x = c(0,1), y = c(0,1))
 ```
 
-# Vragen case study MIMIC-III: 
-
-- Willen we een gevalideerd prediction model gebruiken inclusief parameterwaardes of alleen dezelfde varabelen gebruiken of een heel nieuw model fitten?
-
-- Willen we de bestaande missingness gebruiken of missingness creëren (na imputateren van missingness of alleen in complete cases)?
-
-- Willen het surrogate splits model trainen op incomplete populatiedata (omdat dat de enige methode is die dat kan), of net zoals de andere modellen op complete populatiedata en incomplete validatiedata?
-
-# Overige vragen:
-
-- Hoeveel keer willen we de simulatie herhalen? We hebben nu 1000 staan, maar in elke validatieset zitten ook al 20.000 cases. Zou minder dan genoeg zijn (want we evalueren dan eigenlijk een set van 20.000.000 individuele patienten)?
-
-- Zouden we een laatste check over de methodes kunnen doen voordat we de HPC gaan 'misbruiken'? Bijv. of het aantal imputaties voor de 'draw from  conditional' methode inderdaad 50 moet zijn of we dat nog moeten tunen?
