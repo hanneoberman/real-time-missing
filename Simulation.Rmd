@@ -123,6 +123,9 @@ devset <-
 
 # what do the data look like?
 glimpse(devset)
+ggcorrplot::ggcorrplot(cor(devset[, -1]), type = "lower", lab = TRUE, digits = 3, legend.title = "Correlation")
+
+
 ```
 
 The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(devset$Y)`. We can now fit the different models.
@@ -139,6 +142,13 @@ mod_sub_2 <- fit_sub(devset[,-1], Y ~ X1 + X2)
 # random forest models with imputation and with surrogate splits
 mod_rf_imp <- fit_rf_imp(devset[,-1])
 # mod_rf_sur <- fit_rf_sur(devset[,-1])
+
+auc_true <-
+    pROC::roc(
+      Y ~ prob,
+      data = cbind(devset, prob = predict(mod_true$mod, newdata = devset[,-1])),
+      quiet = TRUE
+    )$auc
 ```
 
 
