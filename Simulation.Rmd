@@ -42,8 +42,8 @@ library("purrr") #for vectorized 'for loops'
 library("pROC") #for easy calculation of the auc
 library("mice") #for missing data stuffs
 library("ranger") #for fast random forests
-library("missRanger") #for fast random forests with imputation
-# library("party") #for random forests with surrogate splits
+# library("missRanger") #for fast random forests with imputation
+library("party") #for random forests with surrogate splits
 # library("moreparty") #for faster version of random forests with surrogate splits
 # library("foreach") #for parallelization of random forests
 # library("doParallel")
@@ -132,7 +132,7 @@ The aim is to have a prevalence of about 0.15. In this dev set, the prevalence o
 
 ```{r fit}
 # logistic model
-mod_true <- fit_true(devset[,-1])
+mod_log <- fit_log(devset[,-1])
 
 # box of submodels
 mod_sub_6 <- fit_sub(devset[,-1], Y ~ X1 + X2 + X3 + X4 + X5 + X6)
@@ -143,10 +143,10 @@ mod_sub_2 <- fit_sub(devset[,-1], Y ~ X1 + X2)
 mod_rf_imp <- fit_rf_imp(devset[,-1])
 # mod_rf_sur <- fit_rf_sur(devset[,-1])
 
-auc_true <-
+auc_log <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_true$mod, newdata = devset[,-1])),
+      data = cbind(devset, prob = predict(mod_log$mod, newdata = devset[,-1])),
       quiet = TRUE
     )$auc
 ```
@@ -223,7 +223,7 @@ valset %>% glimpse()
 # for evaluation purposes, this includes the outcome (Y = observed outcome; Y_prob = hypothetical probability of the outcome) and the number of missing predictor values
 
 # impute the data, split by number of missing variables for computational efficiency
-imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset[,-c(1:2)], valset[,-c(2:3)], m = 51, p = .x))
+imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset[,-c(1:2)], valset[,-c(2:3)], m = 21, p = .x))
 # TODO: set number of imputations to 51 in actual simulation
 ```
 
@@ -242,8 +242,8 @@ Y_pred_rf_sur <- rep(0, nrow(valset))
 # readRDS("Data/rf_sur.RDS")
 
 # predict Y using the imputation methods icw glm and random forest models
-Y_pred_mean <- suppressWarnings(pred_mean(imp_all, mod_true))
-Y_pred_draw <- suppressWarnings(pred_draw(imp_all, mod_true))
+Y_pred_mean <- suppressWarnings(pred_mean(imp_all, mod_log))
+Y_pred_draw <- suppressWarnings(pred_draw(imp_all, mod_log))
 # TODO: add prediction using random forest
 ```
 

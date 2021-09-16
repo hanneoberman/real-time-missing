@@ -36,7 +36,7 @@ devset <-
     non_linear_bs = non_linear_betas,
     interaction = TRUE
   )
-mod_true <- fit_true(devset[,-1])
+mod_log <- fit_log(devset[,-1])
 mod_sub_6 <- fit_sub(devset[,-1], Y ~ X1 + X2 + X3 + X4 + X5 + X6)
 mod_sub_4 <- fit_sub(devset[,-1], Y ~ X1 + X2 + X3 + X4)
 mod_sub_2 <- fit_sub(devset[,-1], Y ~ X1 + X2)
@@ -59,8 +59,8 @@ valset <-
 Y_pred_sub <- pred_sub(valset[,-c(2:3)], mod_sub_2, mod_sub_4, mod_sub_6)
 # TODO: change number of imp to 51 for real sim
 imp_all <- purrr::map(c(4,6,8), ~comp_cond(devset[,-c(1:2)], valset[,-c(2:3)], m = 11, p = .x))
-Y_pred_mean <- suppressWarnings(pred_mean(imp_all, mod_true))
-Y_pred_draw <- suppressWarnings(pred_draw(imp_all, mod_true))
+Y_pred_mean <- suppressWarnings(pred_mean(imp_all, mod_log))
+Y_pred_draw <- suppressWarnings(pred_draw(imp_all, mod_log))
 # TODO: actually predict with surrogate splits for real sim
 Y_pred_rf_sur <- rep(0, nrow(valset)) #too slow! 
 

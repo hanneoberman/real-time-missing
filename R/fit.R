@@ -1,7 +1,7 @@
 # functions to fit different models on the complete data
 
 # function to fit a logistic model 
-fit_true <- function(dataset) {
+fit_log <- function(dataset) {
   # spline knots
   knots <- quantile(dataset$X10, p = c(0.25, 0.5, 0.75))
   # fit prediction model

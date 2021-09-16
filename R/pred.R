@@ -40,11 +40,11 @@ pred_sub <- function(dataset,
 # }
 
 # function for strategy 1, method 1 (conditional mean imp)
-pred_mean <- function(imp_list, true_mod, p = 10) {
+pred_mean <- function(imp_list, log_mod, rf_mod, p = 10) {
   # predict Y for each md pattern
-  Y_pred <- map_dfr(imp_list, ~ {
+  Y_pred_log <- map_dfr(imp_list, ~ {
     predict(
-      true_mod$mod,
+      log_mod$mod,
       newdata = .x$imp_mean[,-c(p + 1, p + 2)],
       type = "response",
       terms = c("Y", "id")
@@ -52,21 +52,31 @@ pred_mean <- function(imp_list, true_mod, p = 10) {
       data.frame(Y_pred = ., id = as.numeric(names(.)))
   }) %>% dplyr::arrange(id)
   
-  # # add rf pred
+  # # # add rf pred
+  # Y_pred_rf <- map_dfr(imp_list, ~ {
+  #   predict(
+  #     rf_mod$mod,
+  #     data = .x$imp_mean[,-c(p + 1, p + 2)],
+  #     type = "response",
+  #     terms = c("Y", "id")
+  #   ) %>%
+  #     data.frame(Y_pred = ., id = as.numeric(names(.)))
+  # }) %>% dplyr::arrange(id)
   # predict(mod_rf_imp$mod, data = aucset[, -1])[["predictions"]]
   
   # output
-  return(Y_pred[, "Y_pred"])
+  return(list(draw_log = Y_pred_log[, "Y_pred"], draw_rf = NULL#Y_pred_rf[, "Y_pred"]
+                ))
 }
 
 # function for strategy 1, method 2 and 3 (conditional draw imp)
-pred_draw <- function(imp_list, true_mod, p = 10) {
+pred_draw <- function(imp_list, log_mod, p = 10) {
   # for each md pattern
   Y_pred <- map_dfr(1:3, function(md) {
     # for each observation
     map_dfr(imp_all[[md]]$imp_draw, function(i) {
       # for each draw predict Y
-      predict(true_mod$mod,
+      predict(log_mod$mod,
               newdata = i[,-c(p + 1, p + 2)],
               type = "response") %>%
         # split single and multiple draws
@@ -75,7 +85,7 @@ pred_draw <- function(imp_list, true_mod, p = 10) {
         setNames(c("id", "sing", "mult"))
     })
   }) %>% dplyr::arrange(id)
-  return(list(sing = Y_pred$sing, mult = Y_pred$mult))
+  return(list(sing_log = Y_pred$sing_log, mult_log = Y_pred$mult_log))
 }
 
 # helper function for pred_draw() to split single and multiple imp methods
