@@ -93,7 +93,7 @@ Therefore, we randomly generated a variance-covariance matrix for the purpose of
 ```{r varcov}
 # create a variance-covariance matrix with p predictors
 varcov <- define_varcov(p = 10)
-ggcorrplot::ggcorrplot(cov2cor(varcov), type = "lower", lab = TRUE)
+# ggcorrplot::ggcorrplot(cov2cor(varcov), type = "lower", lab = TRUE)
 
 # create vectors with regression coefficients for linear and non-linear effects
 linear_betas <- runif(nrow(varcov), -1, 1)
@@ -242,9 +242,8 @@ Y_pred_rf_sur <- rep(0, nrow(valset))
 # readRDS("Data/rf_sur.RDS")
 
 # predict Y using the imputation methods icw glm and random forest models
-Y_pred_mean <- suppressWarnings(pred_mean(imp_all, mod_log))
-Y_pred_draw <- suppressWarnings(pred_draw(imp_all, mod_log))
-# TODO: add prediction using random forest
+Y_pred_mean <- suppressWarnings(pred_mean(imp_all, mod_log, mod_rf_imp))
+Y_pred_draw <- suppressWarnings(pred_draw(imp_all, mod_log, mod_rf_imp))
 ```
 
 Note for the placeholder data (always predict Y = 0) is that there is no discrimination whatsoever.

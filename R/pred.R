@@ -41,7 +41,7 @@ pred_sub <- function(dataset,
 
 # function for strategy 1, method 1 (conditional mean imp)
 pred_mean <- function(imp_list, log_mod, rf_mod, p = 10) {
-  # predict Y for each md pattern
+  # predict Y for each md pattern using the logistic model
   Y_pred_log <- map_dfr(imp_list, ~ {
     predict(
       log_mod$mod,
@@ -52,27 +52,29 @@ pred_mean <- function(imp_list, log_mod, rf_mod, p = 10) {
       data.frame(Y_pred = ., id = as.numeric(names(.)))
   }) %>% dplyr::arrange(id)
   
-  # # # add rf pred
-  # Y_pred_rf <- map_dfr(imp_list, ~ {
-  #   predict(
-  #     rf_mod$mod,
-  #     data = .x$imp_mean[,-c(p + 1, p + 2)],
-  #     type = "response",
-  #     terms = c("Y", "id")
-  #   ) %>%
-  #     data.frame(Y_pred = ., id = as.numeric(names(.)))
-  # }) %>% dplyr::arrange(id)
+  # predict Y for each md pattern using the rf model
+  Y_pred_rf <- map_dfr(imp_list, ~ {
+    predict(
+      rf_mod$mod, 
+      data = .x$imp_mean[,-c(p + 1, p + 2)], 
+      type = "response"
+      )[["predictions"]] %>% 
+      data.frame(Y_pred =., id = .x$imp_mean$id) 
+  }) %>% dplyr::arrange(id)
+  # how to add rf predictions?
   # predict(mod_rf_imp$mod, data = aucset[, -1])[["predictions"]]
+  # predict(mod_rf_imp$mod, data = imp_all[[1]]$imp_mean[,-c(p + 1, p + 2)], type = "response")[["predictions"]] %>% cbind(Y_pred =., id = imp_all[[1]]$imp_mean$id)
   
   # output
-  return(list(draw_log = Y_pred_log[, "Y_pred"], draw_rf = NULL#Y_pred_rf[, "Y_pred"]
+  return(list(mean_log = Y_pred_log[, "Y_pred"], mean_rf = Y_pred_rf[, "Y_pred"]
                 ))
 }
 
 # function for strategy 1, method 2 and 3 (conditional draw imp)
-pred_draw <- function(imp_list, log_mod, p = 10) {
+pred_draw <- function(imp_list, log_mod, rf_mod, p = 10) {
+  # predict Y for each md pattern using the logistic model
   # for each md pattern
-  Y_pred <- map_dfr(1:3, function(md) {
+  Y_pred_log <- map_dfr(1:3, function(md) {
     # for each observation
     map_dfr(imp_all[[md]]$imp_draw, function(i) {
       # for each draw predict Y
@@ -85,7 +87,24 @@ pred_draw <- function(imp_list, log_mod, p = 10) {
         setNames(c("id", "sing", "mult"))
     })
   }) %>% dplyr::arrange(id)
-  return(list(sing_log = Y_pred$sing_log, mult_log = Y_pred$mult_log))
+  
+  # predict Y for each md pattern using the rf model
+  # for each md pattern
+  Y_pred_rf <- map_dfr(1:3, function(md) {
+    # for each observation
+    map_dfr(imp_all[[md]]$imp_draw, function(i) {
+      # for each draw predict Y
+      predict(rf_mod$mod,
+              data = i[,-c(p + 1, p + 2)],
+              type = "response")[["predictions"]] %>%
+        # split single and multiple draws
+        split_pred() %>%
+        c(i[1, p+1], .) %>%
+        setNames(c("id", "sing", "mult"))
+    })
+  }) %>% dplyr::arrange(id)
+  # output
+  return(list(sing_log = Y_pred_log$sing, mult_log = Y_pred_log$mult, sing_rf = Y_pred_rf$sing, mult_rf = Y_pred_rf$mult))
 }
 
 # helper function for pred_draw() to split single and multiple imp methods
