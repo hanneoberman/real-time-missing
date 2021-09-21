@@ -6,6 +6,7 @@ library("dplyr") #for wrangling
 library("purrr") #for vectorization
 library("mvtnorm") #for DGM
 library("mice") #for DGM
+library("rms") #for prediction
 library("party") #for prediction
 library("ranger") #for prediction
 
@@ -17,3 +18,4 @@ n_valset <- 20000
 p <- 10
 DGM <- define_DGM(p = 10)
 
+# 

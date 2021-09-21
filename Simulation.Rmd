@@ -43,6 +43,7 @@ library("pROC") #for easy calculation of the auc
 library("mice") #for missing data stuffs
 library("ranger") #for fast random forests
 # library("missRanger") #for fast random forests with imputation
+library("rms") #for restricted cubic splines
 library("party") #for random forests with surrogate splits
 # library("moreparty") #for faster version of random forests with surrogate splits
 # library("foreach") #for parallelization of random forests
@@ -135,22 +136,24 @@ ggcorrplot::ggcorrplot(cor(devset[, -1]), type = "lower", lab = TRUE, digits = 3
 The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(devset$Y)`. We can now fit the different models.
 
 ```{r fit}
-# logistic model
-mod_log <- fit_log(devset[,-1])
+# # logistic model
+# mod_log <- fit_log(devset[,-1])
+# 
+# # box of submodels
+# mod_sub_6 <- fit_sub(devset[,-1], Y ~ X1 + X2 + X3 + X4 + X5 + X6)
+# mod_sub_4 <- fit_sub(devset[,-1], Y ~ X1 + X2 + X3 + X4)
+# mod_sub_2 <- fit_sub(devset[,-1], Y ~ X1 + X2)
+# 
+# # random forest models with imputation and with surrogate splits
+# mod_rf_imp <- fit_rf_imp(devset[,-1])
+# # mod_rf_sur <- fit_rf_sur(devset[,-1])
 
-# box of submodels
-mod_sub_6 <- fit_sub(devset[,-1], Y ~ X1 + X2 + X3 + X4 + X5 + X6)
-mod_sub_4 <- fit_sub(devset[,-1], Y ~ X1 + X2 + X3 + X4)
-mod_sub_2 <- fit_sub(devset[,-1], Y ~ X1 + X2)
-
-# random forest models with imputation and with surrogate splits
-mod_rf_imp <- fit_rf_imp(devset[,-1])
-# mod_rf_sur <- fit_rf_sur(devset[,-1])
+mod <- fit_mod(devset)
 
 auc_log <-
     pROC::roc(
       Y ~ prob,
-      data = cbind(devset, prob = predict(mod_log$mod, newdata = devset[,-1])),
+      data = cbind(devset, prob = predict(mod$log, newdata = devset[,-1])),
       quiet = TRUE
     )$auc
 ```
@@ -236,7 +239,7 @@ Now we can generate predictions for each of the cases in the validation set.
 
 ```{r predict}
 # predict Y using the box of submodels method
-Y_pred_sub <- pred_sub(valset[,-c(2:3)], mod_sub_2, mod_sub_4, mod_sub_6)
+Y_pred_sub <- pred_sub(valset[,-c(2:3)], mod$sub$p2, mod$sub$p4, mod$sub$p6)
 
 # predict Y using random forest with surrogate splits (switched off because of computational load)
 Y_pred_rf_sur <- rep(0, nrow(valset)) 
@@ -246,8 +249,8 @@ Y_pred_rf_sur <- rep(0, nrow(valset))
 # # readRDS("Data/rf_sur.RDS")
 
 # predict Y using the imputation methods icw glm and random forest models
-Y_pred_mean <- suppressWarnings(pred_mean(imp_all, mod_log, mod_rf_imp))
-Y_pred_draw <- suppressWarnings(pred_draw(imp_all, mod_log, mod_rf_imp))
+Y_pred_mean <- suppressWarnings(pred_mean(imp_all, mod$log, mod$rf))
+Y_pred_draw <- suppressWarnings(pred_draw(imp_all, mod$log, mod$rf))
 ```
 
 Note for the placeholder data (always predict Y = 0) is that there is no discrimination whatsoever.
