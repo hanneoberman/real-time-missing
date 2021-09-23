@@ -36,4 +36,6 @@ pred <- generate_data(
   DGM$betas[(p + 1):(2 * p)],
   interaction = TRUE) %>% 
     create_miss(missingness_pat = DGM$miss_pat, missingness_type = DGM$miss_type)
-# TODO: add prediction function here!
+  # TODO: add prediction function here!
+
+# TODO: create wrapper function to repeat simulation
