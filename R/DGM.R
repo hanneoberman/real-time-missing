@@ -33,7 +33,7 @@ define_DGM <- function(p = 10, seed = 123) {
 }
 
 # function to generate data for 10 continuous predictors and 1 binary outcome (used in every simulation)
-generate_sample <-
+generate_data <-
   function(sample_size, covariance_matrix, linear_bs, non_linear_bs, interaction = FALSE) {
     # generate observations for the predictors
     dat <-

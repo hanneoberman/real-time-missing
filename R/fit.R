@@ -1,19 +1,26 @@
 # functions to fit different models on the complete data
 
 # fit the prediction models on the devset
-fit_mod <- function(development_set){
+fit_mod <- function(development_set, n_predictors = 10){
+  # save the means and var-cov matrix for imputation
+  means <- colMeans(development_set[, -c(1,2)])
+  varcov <- cov(development_set[, -c(1,2)])
+  # calculate the number of observed predictors
+  p_obs <- list(2:(n_predictors+2-4), 2:(n_predictors+2-6), 2:(n_predictors+2-8))
   # logistic model with splines
-  log_mod <- glm(Y ~ rms::rcs(X10, 5)+., family = "binomial", data = development_set[, -1])
+  log_mod <- glm(Y ~ rms::rcs(X10, 5) + ., family = "binomial", data = development_set[, -1])
   # random forest model
-  rf_mod <- ranger::ranger(Y~., data = development_set, num.trees = 100, min.node.size = 10)
+  rf_mod <- ranger::ranger(Y~., data = development_set[, -1], num.trees = 100, min.node.size = 10)
   # surrogate split model
-  sur_mod <- party::cforest(Y~., data=development_set)
+  sur_mod <- party::cforest(Y~., data=development_set[, -1])
   # box of submodels
-  sub_mod <- purrr::map(list(c(2:4), c(2:6), c(2:8)), ~{
+  sub_mod <- purrr::map(p_obs, ~{
     development_set[, .x] %>% 
-      glm(Y ~ ., family = "binomial", data = .)}) %>% setNames(., c("2p", "4p", "6p"))
+      glm(Y ~ ., family = "binomial", data = .)}) %>% setNames(c("miss_4", "miss_6", "miss_8"))
   # output
   return(list(
+    mu = means,
+    sigma = varcov,
     log = log_mod,
     rf = rf_mod,
     sur = sur_mod,
