@@ -19,6 +19,8 @@ n_imp <- 11 #TODO: make this 51
 p <- 10 #p_missing is hard coded as 4, 6 or 8
 DGM <- define_DGM(p = 10)
 
+# TODO: create wrapper function to repeat simulation
+
 # fit models in dev set
 mod <- generate_data(
   sample_size = n_devset,
@@ -38,4 +40,4 @@ pred <- generate_data(
     create_miss(missingness_pat = DGM$miss_pat, missingness_type = DGM$miss_type)
   # TODO: add prediction function here!
 
-# TODO: create wrapper function to repeat simulation
+
