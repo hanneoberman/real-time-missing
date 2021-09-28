@@ -23,10 +23,10 @@ n_devset <- 100 #TODO: make this 10000
 n_valset <- 200 #TODO: make this 20000
 m <- 11 #TODO: make this 51
 p <- 10 #p_missing is hard coded as 4, 6 or 8
-DGM <- define_DGM(p = 10)
+DGM <- define_DGM(p)
 
 # TODO: create wrapper function to repeat simulation
-
+sim_once <- function(n_devset, n_valset, m, p){
 # fit models in dev set
 mod <- generate_data(
   sample_size = n_devset,
@@ -47,3 +47,9 @@ pred <- generate_data(
   # TODO: add prediction function here!
   pred_Y(fitted_mod = mod, n_imp = m)
 
+# output
+return(pred)
+}
+
+# # test
+# sim_once(n_devset, n_valset, m, p)

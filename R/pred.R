@@ -37,7 +37,7 @@ pred_Y <- function(validation_set, fitted_mod, n_imp){
   })
 
   # output
-  return(list(
+  return(data.frame(
     Y_true = Y_true,
     Y_prob = Y_prob,
     Y_pred_log_mean = Y_pred_log$mean,
