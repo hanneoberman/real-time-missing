@@ -1,82 +1,53 @@
 # functions to predict the outcome variable from the incomplete data
 
-# function for the box of submodels method
-pred_sub <- function(dataset,
-                     submodel_2,
-                     submodel_4,
-                     submodel_6) {
-  # add the id number to return in the correct order
-  dataset <- cbind(id = 1:nrow(dataset), dataset)
-  datasplit <- split(dataset, dataset$p_miss)
-  Y_pred <-
-    c(
+pred_Y <- function(validation_set, fitted_mod, n_imp){
+  # split off and save Y for revaluation
+  Y_true <- validation_set$Y
+  Y_prob <- validation_set$Y_prob
+  validation_set <- validation_set[, -c(2:3)] %>% cbind(id = 1:nrow(.), .)
+  
+  # non-imputation methods
+  # pattern submodel method
+  ids_miss <- map(c(4,6,8), ~{validation_set %>% filter(p_miss==.x) %>% .[,"id"]})
+  Y_pred_sub <- map2_dfr(ids_miss, fitted_mod$sub, ~{validation_set[.x, -c(1,2)] %>%
       predict(
-        submodel_2$mod,
-        newdata = datasplit$`8`[, -2],
+        .y,
+        newdata = .,
         type = "response",
-        terms = c("Y", "id")
-      ),
-      predict(
-        submodel_4$mod,
-        newdata = datasplit$`6`[, -2],
-        type = "response",
-        terms = c("Y", "id")
-      ),
-      predict(
-        submodel_6$mod,
-        newdata = datasplit$`4`[, -2],
-        type = "response",
-        terms = c("Y", "id")
-      )
-    ) %>%
-    data.frame(Y_pred = ., id = as.numeric(names(.))) %>% dplyr::arrange(id)
-  # output
-  return(Y_pred[, "Y_pred"])
-}
-
-# # function for rf with imputation (missranger)
-# pred_rf_imp <- function(dataset, rfmodel_imp){
-#   missRanger::missRanger(dataset) %>% predict(rfmodel_imp, data = .)
-# }
-
-# function for strategy 1, method 1 (conditional mean imp)
-pred_mean <- function(imp_list) {
-  # predict Y for each md pattern
-  Y_pred <- map_dfr(imp_list, ~ {
-    predict(
-      mod_true$mod,
-      newdata = .x$imp_mean[,-c(11:12)],
-      type = "response",
-      terms = c("Y", "id")
-    ) %>%
-      data.frame(Y_pred = ., id = as.numeric(names(.)))
-  }) %>% dplyr::arrange(id)
-  # output
-  return(Y_pred[, "Y_pred"])
-}
-
-# function for strategy 1, method 2 and 3 (conditional draw imp)
-pred_draw <- function(imp_list) {
-  # for each md pattern
-  Y_pred <- map_dfr(1:3, function(p) {
-    # for each observation
-    map_dfr(imp_all[[p]]$imp_draw, function(i) {
-      # for each draw predict Y
-      predict(mod_true$mod,
-              newdata = i[,-c(11:12)],
-              type = "response") %>%
-        # split single and multiple draws
-        split_pred() %>%
-        c(i[1, 11], .) %>%
-        setNames(c("id", "sing", "mult"))
+        terms = c("id", "Y")
+      ) %>% data.frame(Y_pred = ., id = .x)}) %>% dplyr::arrange(id)
+  # surrogate split method
+  Y_pred_sur <- predict(fitted_mod$sur, newdata = validation_set)[,"Y"]
+  
+  # imputation methods 
+  imputations <- impute_cond(vals = validation_set, dev_means = mod$mu, dev_cov = mod$sigma, m = n_imp)
+  # conditional imputation with logistic model
+  Y_pred_log <- imputations %>% map(~{
+    select(.x, -p_miss, -draw) %>% 
+    predict(fitted_mod$log, newdata = ., type = "response") %>% 
+      matrix(ncol = nrow(validation_set)) %>% colMeans()
     })
-  }) %>% dplyr::arrange(id)
-  return(list(sing = Y_pred$sing, mult = Y_pred$mult))
+  # conditional imputation with rf model
+  Y_pred_rf <- imputations %>% map(~{
+    select(.x, -p_miss, -draw) %>% 
+      predict(mod$rf,
+              data = .,
+              type = "response") %>% .[["predictions"]] %>% 
+      matrix(ncol = nrow(validation_set)) %>% colMeans()
+  })
+
+  # output
+  return(data.frame(
+    Y_true = Y_true,
+    Y_prob = Y_prob,
+    Y_pred_log_mean = Y_pred_log$mean,
+    Y_pred_log_sing = Y_pred_log$sing,
+    Y_pred_log_mult = Y_pred_log$mult,
+    Y_pred_rf_mean = Y_pred_rf$mean,
+    Y_pred_rf_sing = Y_pred_rf$sing,
+    Y_pred_rf_mult = Y_pred_rf$mult,
+    Y_pred_sub = Y_pred_sub$Y_pred,
+    Y_pred_sur = Y_pred_sur
+  ))
 }
 
-# helper function for pred_draw() to split single and multiple imp methods
-# averages the draws from the distribution of predictions after multiple imp
-split_pred <-
-  function(preds) {
-    c(preds[1], mean(preds[2:length(preds)]))
-  }

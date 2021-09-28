@@ -1,36 +1,42 @@
 # functions for imputing the missing values in an incomplete set
 
 # helper function to compute conditional mean and var for imputation
-comp_cond <- function(devs, vals, p) {
+impute_cond <- function(vals, dev_means, dev_cov, m) {
+  imp_list <- purrr::map(c(4,6,8), function(p){
   # process inputs
-  means <- colMeans(devs[, -1])
-  vcov <- cov(devs[, -1])
-  miss <- (nrow(vcov) - p + 1):nrow(vcov)
-  obs <-  1:(nrow(vcov) - p)
-  x_obs <- vals[vals$p_miss == p, -c(1:2)]
+  miss <- (nrow(dev_cov) - p + 1):nrow(dev_cov)
+  obs <-  1:(nrow(dev_cov) - p)
+  x_obs <- vals[vals$p_miss == p, -c(1,2)]
   # compute
-  B <- vcov[miss, miss]
-  C <- vcov[miss, obs, drop = FALSE]
-  D <- vcov[obs, obs]
+  B <- dev_cov[miss, miss]
+  C <- dev_cov[miss, obs, drop = FALSE]
+  D <- dev_cov[obs, obs]
   CDinv <- C %*% solve(D)
   # conditionals
   c_var <- B - CDinv %*% t(C)
   c_mu <-
     purrr::map_dfr(1:nrow(x_obs), function(i) {
-      c(means[miss] + CDinv %*% (as.numeric(x_obs[i, obs]) - means[obs])) %>%
+      c(dev_means[miss] + CDinv %*% (as.numeric(x_obs[i, obs]) - dev_means[obs])) %>%
         c(as.numeric(rownames(x_obs[i, obs])), p) %>%
         setNames(c(paste0("X", miss), "id", "p_miss"))
     })
   # impute mean
-  imp_mean <- cbind(x_obs[, obs], c_mu)
+  imp_mean <- cbind(x_obs[, obs], c_mu, draw = NA)
   # impute draw
   imp_draw <-
-    purrr::map(1:nrow(c_mu), function(i) {
-      MASS::mvrnorm(11, mu = as.numeric(c_mu[i, c(paste0("X", miss))]), Sigma = c_var) %>%
-        cbind(x_obs[i, obs], ., c_mu[i, c("id", "p_miss")], row.names = NULL)
+    purrr::map_dfr(1:nrow(c_mu), function(i) {
+      MASS::mvrnorm(m, mu = as.numeric(c_mu[i, c(paste0("X", miss))]), Sigma = c_var) %>%
+        cbind(x_obs[i, obs], ., c_mu[i, c("id", "p_miss")], draw = 1:nrow(.), row.names = NULL) 
     })
+  list(mean = imp_mean, draw = imp_draw)}) %>% setNames(c("miss_4", "miss_6", "miss_8"))
   # outputs
-  return(list(imp_mean = imp_mean, imp_draw = imp_draw))
+  imp_means <- map_dfr(imp_list, "mean") %>% dplyr::arrange(id)
+  imp_draws <- map_dfr(imp_list, "draw") %>% dplyr::arrange(id)
+  singles <- imp_draws$draw == m
+  return(list(
+    mean = imp_means, 
+    sing = imp_draws[singles,], 
+    mult = imp_draws[!singles,]))
 }
 
 # test
