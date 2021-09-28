@@ -10,12 +10,18 @@ library("rms") #for prediction
 library("party") #for prediction
 library("ranger") #for prediction
 
+# functions
+source("./R/DGM.R")
+source("./R/fit.R")
+source("./R/imp.R")
+source("./R/pred.R")
+
 # parameters
 set.seed(11)
 n_sim <- 2 #TODO: make this 1000
 n_devset <- 100 #TODO: make this 10000
 n_valset <- 200 #TODO: make this 20000
-n_imp <- 11 #TODO: make this 51
+m <- 11 #TODO: make this 51
 p <- 10 #p_missing is hard coded as 4, 6 or 8
 DGM <- define_DGM(p = 10)
 
@@ -37,7 +43,7 @@ pred <- generate_data(
   DGM$betas[1:p],
   DGM$betas[(p + 1):(2 * p)],
   interaction = TRUE) %>% 
-    create_miss(missingness_pat = DGM$miss_pat, missingness_type = DGM$miss_type)
+    create_miss(missingness_pat = DGM$miss_pat, missingness_type = DGM$miss_type) %>% 
   # TODO: add prediction function here!
-
+  pred_Y(fitted_mod = mod, n_imp = m)
 
