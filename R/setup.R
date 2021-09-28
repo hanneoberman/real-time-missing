@@ -1,5 +1,10 @@
-# setup simulation functions
-# run/source this once to load 
+########################
+# simulation functions #
+########################
+# file to setup simulation functions
+# run/source this once to load all
+# functions sorted by level (once vs re-used)
+# and order in the simulation pipeline
 
 #######################
 # once used functions #
