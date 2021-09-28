@@ -10,17 +10,16 @@ pred_Y <- function(validation_set, fitted_mod, n_imp){
   # conditional imputation with logistic model
   Y_pred_log <- imputations %>% map(~{
     select(.x, -p_miss, -draw) %>% 
-    predict(fitted_mod$log, newdata = ., type = "response", terms = c("Y")) %>% 
-      matrix(ncol = nrow(validation_set)) %>% colMeans()})
-    #as_tibble() %>% dplyr::arrange(names(.)) %>% .$value})
+    predict(fitted_mod$log, newdata = ., type = "response") %>% 
+      matrix(ncol = nrow(validation_set)) %>% colMeans()
+    })
   # conditional imputation with rf model
   Y_pred_rf <- imputations %>% map(~{
     select(.x, -p_miss, -draw) %>% 
       predict(mod$rf,
               data = .,
-              type = "response",
-              terms = c("Y", "id")) %>% .[["predictions"]]
-    # TODO: add id so the mult method works!
+              type = "response") %>% .[["predictions"]] %>% 
+      matrix(ncol = nrow(validation_set)) %>% colMeans()
   })
   # # pattern submodel method
   # validation_set %>% 
@@ -31,7 +30,8 @@ pred_Y <- function(validation_set, fitted_mod, n_imp){
   #     type = "response",
   #     terms = c("Y", "id")
   #   )
-    
+  # surrogate split method
+  Y_pred_sur <- predict(fitted_mod$sur, newdata = validation_set)[,"Y"]
   # TODO: add submodel method
   # TODO: add surrogate split method
   # TODO: average the predictions from the mult method
@@ -48,7 +48,7 @@ pred_Y <- function(validation_set, fitted_mod, n_imp){
     Y_pred_rf_sing = Y_pred_rf$sing,
     Y_pred_rf_mult = Y_pred_rf$mult,
     Y_pred_sub = NULL,
-    Y_pred_sur = NULL
+    Y_pred_sur = Y_pred_sur
   ))
 }
 
