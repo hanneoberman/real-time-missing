@@ -142,7 +142,7 @@ fit_mod <- function(development_set, n_predictors = 10) {
          2:(n_predictors + 2 - 8))
   # logistic model with splines
   log_mod <-
-    glm(Y ~ rms::rcs(X10, 5) + ., family = "binomial", data = development_set[,-1])
+    glm(Y ~ rms::rcs(X10, 5) + . - X10, family = "binomial", data = development_set[,-1])
   # random forest model
   rf_mod <-
     ranger::ranger(Y ~ .,
