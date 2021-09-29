@@ -33,51 +33,26 @@ TODO:
 
 
 ```{r setup, message = FALSE, warning = FALSE, include = FALSE}
-# environment
-library("dplyr") #for the pipe operator
-library("ggplot2") #for plotting
-library("ggcorrplot") #for easy visualization of correlations
-library("mvtnorm") #for multivariate normal distributions
-library("purrr") #for vectorized 'for loops'
-library("pROC") #for easy calculation of the auc
-library("mice") #for missing data stuffs
-library("ranger") #for fast random forests
-# library("missRanger") #for fast random forests with imputation
-library("rms") #for restricted cubic splines
-library("party") #for random forests with surrogate splits
-# library("moreparty") #for faster version of random forests with surrogate splits
-# library("foreach") #for parallelization of random forests
-# library("doParallel")
-# doFuture::registerDoParallel()
-# library("doFuture")
-# doFuture::registerDoFuture()
-# y <- plyr::llply(1:2, identity, .parallel = TRUE)
+# packages
+library("dplyr") #for wrangling
+library("purrr") #for vectorization
+library("mvtnorm") #for DGM
+library("mice") #for DGM
+library("rms") #for prediction
+library("party") #for prediction
+library("ranger") #for prediction
 
-# # data
-# load("./Data/varcov.RData") #variance-covariance matrix of the SMART dataset
+# functions 
+source("./R/setup.R")
 
-# functions
-source("./R/DGM.R") #data generating mechanism
-source("./R/fit.R") #fit models on complete data
-source("./R/imp.R") #impute missing data
-source("./R/pred.R") #predict outcome variable from incomplete data
-source("./R/perf.R") #compute performance measures for each method
-source("./RunSim.R") #run all at once for development purposes
-
-# setup environment
-# run this once
+# parameters
 set.seed(11)
 n_sim <- 2 #TODO: make this 1000
-n_devset <- 10000
-n_valset <- 20000
-p <- 10
-DGM <- define_DGM(p = 10)
-```
-
-```{r testrun, eval=FALSE, include=FALSE}
-# run this chuck only for development purposes (e.g., new functions)
-# setup_env()
-# sim_once()
+n_devset <- 100 #TODO: make this 10000
+n_valset <- 200 #TODO: make this 20000
+m <- 11 #TODO: make this 51
+p <- 10 #p_missing is hard coded as 4, 6 or 8
+DGM <- define_DGM(p)
 ```
 
 # Aims
@@ -100,12 +75,12 @@ We decided against the use of a 'real world' variance-covariance matrix for the 
 Therefore, we randomly generated a variance-covariance matrix for the purpose of this study. This matrix^[Note. Maybe add more variance-covariance matrices for sensitivity analyses later. E.g., add one with 200 predictors.] serves as the basis for each development and/or validation dataset used in this study. 
 
 ```{r varcov}
-# create a variance-covariance matrix with p predictors
-# DGM <- define_DGM(p = 10)
-# ggcorrplot::ggcorrplot(cov2cor(varcov), type = "lower", lab = TRUE)
+# visualize variance-covariance matrix with p predictors
+ggcorrplot::ggcorrplot(cov2cor(DGM$varcov), type = "lower", lab = TRUE)
 
-# create vectors with regression coefficients for linear and non-linear effects
-
+# print vectors with regression coefficients for linear and non-linear effects
+(linear_effects <- DGM$betas[1:10])
+(non-linear_effects <- DGM$betas[11:20])
 ```
 
 We use the 10 predictors to calculate the dichotomous outcome. The current DGM model includes one cubic term and 9 interactions. For additional complexity, we add one log-transformation (the natural logarithm of the absolute value of the second predictor).
@@ -136,20 +111,10 @@ ggcorrplot::ggcorrplot(cor(devset[, -1]), type = "lower", lab = TRUE, digits = 3
 The aim is to have a prevalence of about 0.15. In this dev set, the prevalence of the outcome is `r mean(devset$Y)`. We can now fit the different models.
 
 ```{r fit}
-# # logistic model
-# mod_log <- fit_log(devset[,-1])
-# 
-# # box of submodels
-# mod_sub_6 <- fit_sub(devset[,-1], Y ~ X1 + X2 + X3 + X4 + X5 + X6)
-# mod_sub_4 <- fit_sub(devset[,-1], Y ~ X1 + X2 + X3 + X4)
-# mod_sub_2 <- fit_sub(devset[,-1], Y ~ X1 + X2)
-# 
-# # random forest models with imputation and with surrogate splits
-# mod_rf_imp <- fit_rf_imp(devset[,-1])
-# # mod_rf_sur <- fit_rf_sur(devset[,-1])
-
+# fitt all models
 mod <- fit_mod(devset)
 
+# check auc of logistic model
 auc_log <-
     pROC::roc(
       Y ~ prob,
@@ -181,8 +146,8 @@ The number of events in this val set is `r sum(valset$Y)`. The next step is to a
 We use a mixture of three missing data patterns, with 40%, 60%, and 80% of variables being missing per case. The missingness mechanisms are a mixture as well: we combine the four types of MAR missingness ("MAR left", "MAR right", "MAR mid", and "MAR tail").
 
 ```{r missingness}
-# define the missingness parameters
-#miss_par <- define_miss(p = nrow(DGM$varcov))
+# check the MAR missingness mechanisms
+DGM$miss_type
 ```
 
 Ampute the validation set according to the missing data patterns and missingness mechanisms.
@@ -223,37 +188,14 @@ The five methods for dealing with missing values are:
 
 - (Only for strategy 3): Missing values are handled using the surrogate splits.
 
-For the first three missing data methods, we need to impute the missing values. The other two do not require this extra step. 
+For the first three missing data methods, we impute the missing values first, the pattern submodel and surrogate split methods do not require this extra step. 
 
-```{r impute}
-# for the imputation methods, we need to fill in the missing values in the validation data
-valset %>% glimpse() 
-# for evaluation purposes, this includes the outcome (Y = observed outcome; Y_prob = hypothetical probability of the outcome) and the number of missing predictor values
-
-# impute the data, split by number of missing variables for computational efficiency
-imp_all <- purrr::map(c(4,6,8), ~comp_cond(valset[,-c(2:3)], mod$mu, mod$sigma, m = 21, p = .x))
-# TODO: set number of imputations to 51 in actual simulation
-```
-
-Now we can generate predictions for each of the cases in the validation set.
+Let's generate predictions for each of the methods (note that the imputation step happens within this function).
 
 ```{r predict}
-# predict Y using the box of submodels method
-Y_pred_sub <- pred_sub(valset[,-c(2:3)], mod$sub$p2, mod$sub$p4, mod$sub$p6)
-
-# predict Y using random forest with surrogate splits (switched off because of computational load)
-Y_pred_rf_sur <- rep(0, nrow(valset)) 
-# TODO: uncomment this part in actual simulation
-# Y_pred_rf_sur <- predict(mod_rf_sur$mod, newdata = valset[,-c(1,2)])
-# # saveRDS(Y_pred_rf_sur, file = "Data/rf_sur.RDS")
-# # readRDS("Data/rf_sur.RDS")
-
-# predict Y using the imputation methods icw glm and random forest models
-Y_pred_mean <- suppressWarnings(pred_mean(imp_all, mod$log, mod$rf))
-Y_pred_draw <- suppressWarnings(pred_draw(imp_all, mod$log, mod$rf))
+predictions <- pred_outcome(validation_set = valset, fitted_mod = mod, n_imp = m) 
 ```
-
-Note for the placeholder data (always predict Y = 0) is that there is no discrimination whatsoever.
+Why do we get these error messages?
 
 # Performance measures
 
@@ -281,18 +223,19 @@ TODO: add real intercept (this one is re-estimated) using logistic model (en met
 root mean sq distance van log calib slope (ideaal is 0, dus verder is slechter). bijv van lasso hele hoge variantie terwijl gem perfect is.
 
 ```{r performance}
-# combine the predictions from the different methods
-pred_list <- list(Y_prob = valset$Y_prob,
-                  Y_obs = valset$Y,
-                  Y_sub = Y_pred_sub,
-                  Y_rf_sur = Y_pred_rf_sur,
-                  Y_mean_log = Y_pred_mean$mean_log,
-                  Y_sing_log = Y_pred_draw$sing_log,
-                  Y_mult_log = Y_pred_draw$mult_log,
-                  Y_mean_rf = Y_pred_mean$mean_rf,
-                  Y_sing_rf = Y_pred_draw$sing_rf,
-                  Y_mult_rf = Y_pred_draw$mult_rf)
-# RMSErf
+# put the predictions in a list to suit the old code below
+pred_list <- list(Y_prob = predictions$Y_prob,
+                  Y_obs = predictions$Y_true,
+                  Y_sub = predictions$Y_pred_sub,
+                  Y_rf_sur = predictions$Y_pred_sur,
+                  Y_mean_log = predictions$Y_pred_log_mean,
+                  Y_sing_log = predictions$Y_pred_log_sing,
+                  Y_mult_log = predictions$Y_pred_log_mult,
+                  Y_mean_rf = predictions$Y_pred_rf_mean,
+                  Y_sing_rf = predictions$Y_pred_rf_sing,
+                  Y_mult_rf = predictions$Y_pred_rf_mult)
+# RMSE
+source("./R/perf.r")
 (RMSE_obs <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = pred_list[["Y_obs"]])))
 (RMSE_prob <- purrr::map(pred_list, ~ calc_RMSE(pred = ., obs = pred_list[["Y_prob"]])))
 
@@ -301,11 +244,11 @@ pred_list <- list(Y_prob = valset$Y_prob,
 (brier_prob <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = pred_list[["Y_prob"]])))
 # Let op: Komt de kans richting het gemiddelde? Zie prestatie van 'methode' met alleen 0en als predicted prob invullen.
 
-rms::val.prob(p = Y_pred_sub, y = valset$Y)
-rms::val.prob(p = Y_pred_draw$mult, y = valset$Y)
+rms::val.prob(p = predictions$Y_pred_sub, y = valset$Y)
+rms::val.prob(p = predictions$Y_pred_log_mult, y = valset$Y)
 
 # plot calibration
-plotdat <- data.frame(obs = rep(pred_list$Y_prob,4), pred = c(pred_list$Y_sub, pred_list$Y_imp_mean, pred_list$Y_imp_sing, pred_list$Y_imp_mult), method = c("submodel", "cond.imp", "sing.imp", "mult.imp"))
+plotdat <- data.frame(obs = rep(pred_list$Y_obs,4), pred = c(pred_list$Y_sub, pred_list$Y_imp_mean, pred_list$Y_imp_sing, pred_list$Y_imp_mult), method = c("submodel", "cond.imp", "sing.imp", "mult.imp"))
 ggplot(plotdat, aes(x = pred, y = obs, color = method)) +
   geom_point(alpha = 0.01) +
   geom_smooth(fullrange = T) + 
