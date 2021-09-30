@@ -28,6 +28,8 @@ TODO:
 
 - After running the simulation, check convergence of the population diagnostics to see if 1000 repetitions was enough
 
+- TODO: add practical implication of imputation methods to discussion -> imputed values predictors may be clinically relevant.
+
 
 ![](./www/simulationdiagram.png)
 
@@ -48,8 +50,8 @@ source("./R/setup.R")
 # parameters
 set.seed(11)
 n_sim <- 2 #TODO: make this 1000
-n_devset <- 100 #TODO: make this 10000
-n_valset <- 200 #TODO: make this 20000
+n_devset <- 10000 #TODO: make this 10000
+n_valset <- 20000 #TODO: make this 20000
 m <- 11 #TODO: make this 51
 p <- 10 #p_missing is hard coded as 4, 6 or 8
 DGM <- define_DGM(p)
@@ -243,12 +245,12 @@ source("./R/perf.r")
 # (brier_obs <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = valset[, "Y_obs"])))
 (brier_prob <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = pred_list[["Y_prob"]])))
 # Let op: Komt de kans richting het gemiddelde? Zie prestatie van 'methode' met alleen 0en als predicted prob invullen.
-
-rms::val.prob(p = predictions$Y_pred_sub, y = valset$Y)
-rms::val.prob(p = predictions$Y_pred_log_mult, y = valset$Y)
+# purrr::map(predictions, ~{rms::val.prob(p = predictions$.x, y = predictions$Y_true)})
+rms::val.prob(p = predictions$Y_pred_sub, y = predictions$Y_true)
+rms::val.prob(p = predictions$Y_pred_log_mult, y = predictions$Y_true)
 
 # plot calibration
-plotdat <- data.frame(obs = rep(pred_list$Y_obs,4), pred = c(pred_list$Y_sub, pred_list$Y_imp_mean, pred_list$Y_imp_sing, pred_list$Y_imp_mult), method = c("submodel", "cond.imp", "sing.imp", "mult.imp"))
+plotdat <- data.frame(obs = rep(pred_list$Y_prob,4), pred = c(pred_list$Y_sub, pred_list$Y_imp_mean, pred_list$Y_imp_sing, pred_list$Y_imp_mult), method = c("submodel", "cond.imp", "sing.imp", "mult.imp"))
 ggplot(plotdat, aes(x = pred, y = obs, color = method)) +
   geom_point(alpha = 0.01) +
   geom_smooth(fullrange = T) + 

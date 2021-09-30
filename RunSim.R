@@ -22,6 +22,7 @@ n_valset <- 200 #TODO: make this 20000
 m <- 11 #TODO: make this 51
 p <- 10 #p_missing is hard coded as 4, 6 or 8
 DGM <- define_DGM(p)
+# TODO: check error variance glm in simulation 
 
 #####################
 # run simulation ####

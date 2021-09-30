@@ -53,7 +53,7 @@ simulate_once <- function(DGM, n_devset, n_valset, m, p) {
     non_linear_bs = DGM$betas[(p + 1):(2 * p)],
     interaction = TRUE
   ) %>%
-    fit_mod(n_predictors = p) %>% suppressWarnings()
+    fit_mod(n_predictors = p) #%>% suppressWarnings()
   # predict outcome in val set
   pred <- generate_data(
     sample_size = round(1.01 * n_valset, 0),
@@ -64,7 +64,7 @@ simulate_once <- function(DGM, n_devset, n_valset, m, p) {
   ) %>%
     create_miss(missingness_pat = DGM$miss_pat,
                 missingness_type = DGM$miss_type) %>%
-    pred_outcome(fitted_mod = mod, n_imp = m) %>% suppressWarnings()
+    pred_outcome(fitted_mod = mod, n_imp = m) #%>% suppressWarnings()
   # output
   return(pred)
 }
@@ -89,10 +89,9 @@ generate_data <- function(sample_size,
       checkSymmetry = FALSE
     )
   # compute the outcome based on linear function of predictors and error term
-  betas <- linear_bs #runif(nrow(covariance_matrix), -10, 10)
   lin_pred <- -3 +
     betas[2] * log(abs(dat[, 2])) +
-    dat[, c(1, 3:nrow(covariance_matrix))] %*% betas[c(1, 3:nrow(covariance_matrix))] +
+    dat[, c(1, 3:nrow(covariance_matrix))] %*% linear_bs[c(1, 3:nrow(covariance_matrix))] +
     rnorm(sample_size, sd = 2)
   if (interaction) {
     lin_pred <- lin_pred + dat %*% non_linear_bs * dat[, 1]
@@ -221,23 +220,6 @@ pred_outcome <- function(validation_set, fitted_mod, n_imp) {
   Y_prob <- validation_set$Y_prob
   validation_set <-
     validation_set[,-c(2:3)] %>% cbind(id = 1:nrow(.), .)
-  ## non-imputation methods
-  # pattern submodel method
-  ids_miss <-
-    map(c(4, 6, 8), ~ {
-      validation_set %>% filter(p_miss == .x) %>% .[, "id"]
-    })
-  Y_pred_sub <-
-    map2_dfr(ids_miss, fitted_mod$sub, ~ {
-      validation_set[.x,-c(1, 2)] %>%
-        predict(.y,
-                newdata = .,
-                type = "response",
-                terms = c("id", "Y")) %>% data.frame(Y_pred = ., id = .x)
-    }) %>% dplyr::arrange(id)
-  # surrogate split method
-  Y_pred_sur <-
-    predict(fitted_mod$sur, newdata = validation_set)[, "Y"]
   ## imputation methods
   imputations <-
     impute_cond(
@@ -260,6 +242,24 @@ pred_outcome <- function(validation_set, fitted_mod, n_imp) {
               type = "response") %>% .[["predictions"]] %>%
       matrix(ncol = nrow(validation_set)) %>% colMeans()
   })
+  ## non-imputation methods
+  # pattern submodel method
+  ids_miss <-
+    map(c(4, 6, 8), ~ {
+      validation_set %>% filter(p_miss == .x) %>% .[, "id"]
+    })
+  Y_pred_sub <-
+    map2_dfr(ids_miss, fitted_mod$sub, ~ {
+      validation_set[.x,-c(1, 2)] %>%
+        predict(.y,
+                newdata = .,
+                type = "response",
+                terms = c("id", "Y")) %>% data.frame(Y_pred = ., id = .x)
+    }) %>% dplyr::arrange(id)
+  # surrogate split method
+  Y_pred_sur <-
+    predict(fitted_mod$sur, newdata = validation_set)[, "Y"]
+
   # output
   return(
     data.frame(
