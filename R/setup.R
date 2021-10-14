@@ -10,7 +10,7 @@
 # once used functions #
 #######################
 
-# function to define the data generating mechanism before starting the simulations
+# set a single data generating mechanism outside simulations
 define_DGM <- function(p = 10, seed = 123) {
   # inputs: number of predictor variables, and random seed
   # output: list of parameters, i.e. variance-covariance matrix of the predictors,
@@ -90,7 +90,7 @@ generate_data <- function(sample_size,
     )
   # compute the outcome based on linear function of predictors and error term
   lin_pred <- -3 +
-    betas[2] * log(abs(dat[, 2])) +
+    linear_bs[2] * log(abs(dat[, 2])) +
     dat[, c(1, 3:nrow(covariance_matrix))] %*% linear_bs[c(1, 3:nrow(covariance_matrix))] +
     rnorm(sample_size, sd = 2)
   if (interaction) {
@@ -141,7 +141,7 @@ fit_mod <- function(development_set, n_predictors = 10) {
          2:(n_predictors + 2 - 8))
   # logistic model with splines
   log_mod <-
-    glm(Y ~ rms::rcs(X10, 5) + . - X10, family = "binomial", data = development_set[,-1])
+    glm(Y ~ splines::ns(X10, df = 3) + . - X10, family = "binomial", data = development_set[,-1])
   # random forest model
   rf_mod <-
     ranger::ranger(Y ~ .,

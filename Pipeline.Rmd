@@ -16,6 +16,12 @@ TODO:
 
 - check c-stat [.6-.9]
 
+- check calibration with prob or binary Y
+
+- dgm formules
+
+- figuren: blauw = 1269b0, rood = 7c1315, groen = 81c454
+
 - report the betas
 
 - Add motivating example with MIMIC data (first impute once with some non-parametric model like an AE, then fit some prediction model on the completed population data)
@@ -222,7 +228,7 @@ TODO: Add **MAPE, RMSPE, mean absolute distance wrt real prob., think about AIC 
 
 TODO: add real intercept (this one is re-estimated) using logistic model (en met offset eromheen voor intercept).
 
-root mean sq distance van log calib slope (ideaal is 0, dus verder is slechter). bijv van lasso hele hoge variantie terwijl gem perfect is.
+root mean sq distance van log, calib slope (ideaal is 0, dus verder is slechter). bijv van lasso hele hoge variantie terwijl gem perfect is.
 
 ```{r performance}
 # put the predictions in a list to suit the old code below
@@ -245,9 +251,14 @@ source("./R/perf.r")
 # (brier_obs <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = valset[, "Y_obs"])))
 (brier_prob <- purrr::map(pred_list, ~ calc_brier(pred = ., obs = pred_list[["Y_prob"]])))
 # Let op: Komt de kans richting het gemiddelde? Zie prestatie van 'methode' met alleen 0en als predicted prob invullen.
-# purrr::map(predictions, ~{rms::val.prob(p = predictions$.x, y = predictions$Y_true)})
-rms::val.prob(p = predictions$Y_pred_sub, y = predictions$Y_true)
+purrr::map(results[[1]][,-1], ~{rms::val.prob(p = .x, y = results[[1]]$Y_true)})
+rms::val.prob(p = pred_list$Y_sub, y = predictions$Y_true)
 rms::val.prob(p = predictions$Y_pred_log_mult, y = predictions$Y_true)
+
+all_results <- test_run$results %>% map_dfr(~identity(.))
+saveRDS(all_results, "results_10_sims.RDS")
+all_results <- results_10_sims
+purrr::map(all_results[,-1], ~{rms::val.prob(p = .x, y = all_results$Y_true)})
 
 # plot calibration
 plotdat <- data.frame(obs = rep(pred_list$Y_prob,4), pred = c(pred_list$Y_sub, pred_list$Y_imp_mean, pred_list$Y_imp_sing, pred_list$Y_imp_mult), method = c("submodel", "cond.imp", "sing.imp", "mult.imp"))

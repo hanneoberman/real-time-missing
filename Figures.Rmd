@@ -1,0 +1,134 @@
+---
+title: "Simulation figures"
+author: "Hanne Oberman"
+date: "7-10-2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# packages
+library(dplyr)
+library(ggplot2)
+
+# load simulation output
+results <- readRDS("output.RDS")$results
+# results <- readRDS("output.RDS") %>% .$results %>% purrr::map_dfr(., ~{.x %>% .[1:20000, ] %>% tidyr::pivot_longer(cols = everything()[-c(1:2)], names_to = "method", values_to = "Y_pred", names_prefix = "Y_pred_")}) %>% cbind(sim = rep(1:1000, each = 20000*8)) %>%  as_tibble()
+gc()
+meth <- names(results[[1]])[-c(1:2)]
+meth_lab <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+FLR", "BOS+RF")
+meth_col <- c("#1269b0", "#81c454") %>% setNames(c("FLR", "RF"))
+```
+
+# Visualize DGM
+
+```{r dgm}
+dgm <- readRDS("output.RDS") %>% .$DGM
+dgm$varcov %>% 
+  cov2cor() %>% 
+  ggcorrplot::ggcorrplot(lab = TRUE, type = "upper")
+
+```
+
+# Visualize results
+
+## Calibration
+
+```{r calibration}
+cali <- purrr::map_dfr(results, function(.i){
+  purrr::map_dfr(meth, ~{lm(.i$Y_prob ~ .i[ , .x])$coefficients %>% c(method = .x, .)}) %>% setNames(c("Method", "Intercept", "Slope"))
+}) %>% mutate(Intercept = as.numeric(Intercept), 
+              Slope = as.numeric(Slope),
+              Analysis = case_when(stringr::str_detect(Method, "log")~"FLR", TRUE~"RF"),
+              Method = factor(Method, levels = c(meth))
+              )
+
+cali %>% 
+  ggplot(aes(x = Method, y = Intercept, fill = Analysis)) +
+  geom_hline(yintercept = 0, color = "grey") +
+  geom_boxplot() +
+  scale_x_discrete(breaks = meth, labels = meth_lab) +
+  scale_fill_manual(values = meth_col) +
+  theme_classic() 
+
+cali %>% 
+  ggplot(aes(x = Method, y = Slope, fill = Analysis)) +
+  geom_hline(yintercept = 1, color = "grey") +
+  geom_boxplot() +
+  scale_x_discrete(breaks = meth, labels = meth_lab) +
+  scale_fill_manual(values = meth_col) +
+  theme_classic() 
+
+# ggplot(results) +
+#   geom_smooth(aes(x = Y_pred, y = Y_prob), method = "lm") +
+#   facet_wrap(~method)
+```
+
+
+## RMSE
+
+```{r RMSE}
+rmse <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{sqrt(mean((.x - .i$Y_prob)^2))})}) %>% 
+  tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "RMSE") %>% 
+  mutate(Analysis = case_when(stringr::str_detect(Method, "log")~"FLR", TRUE~"RF"),
+         Method = factor(Method, levels = c(meth))
+        )
+
+rmse %>% 
+  ggplot(aes(x = Method, y = RMSE, fill = Analysis)) +
+  geom_boxplot() +
+  scale_x_discrete(breaks = meth, labels = meth_lab) +
+  scale_fill_manual(values = meth_col) +
+  theme_classic()
+```
+
+## Brier score
+
+```{r brier}
+brier <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{mean((.x - .i$Y_true)^2)})}) %>% 
+  tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "Brier") %>% 
+  mutate(Analysis = case_when(stringr::str_detect(Method, "log")~"FLR", TRUE~"RF"),
+         Method = factor(Method, levels = c(meth))
+        )
+
+brier %>% 
+  ggplot(aes(x = Method, y = Brier, fill = Analysis)) +
+  geom_boxplot() +
+  scale_x_discrete(breaks = meth, labels = meth_lab) +
+  scale_fill_manual(values = meth_col) +
+  theme_classic()
+```
+## AUC
+
+```{r auc}
+auc <- purrr::map_dfr(
+  results, function(.i){
+    purrr::map_dfc(
+      .i[,-c(1:2)], ~{
+        pROC::roc(.i$Y_true, .x) %>% suppressWarnings() %>% .$auc %>% as.numeric()})}) %>% 
+  tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "AUC") %>% 
+  mutate(Analysis = case_when(stringr::str_detect(Method, "log")~"FLR", TRUE~"RF"),
+         Method = factor(Method, levels = c(meth))
+        )
+
+auc %>% 
+  ggplot(aes(x = Method, y = AUC, fill = Analysis)) +
+  geom_boxplot() +
+  scale_x_discrete(breaks = meth, labels = meth_lab) +
+  scale_fill_manual(values = meth_col) +
+  theme_classic()
+```
+
+# Table
+
+## Average performance
+
+```{r average}
+cali %>% 
+  cbind(AUC = auc$AUC) %>% 
+  cbind(RMSE = rmse$RMSE) %>% 
+  cbind(Brier = brier$Brier) %>% 
+  group_by(Method) %>% 
+  summarise(across(everything()[-3], mean)) %>%
+  write.table(file = "table_perf.csv", sep = ",")
+```
+
