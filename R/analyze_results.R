@@ -34,7 +34,7 @@ pred_col <- c("#1269b0", "#7c1315") %>% setNames(c("Observed", "Missing"))
 miss_lab <- c("CMI", "SDI", "MDI", "BOS", "SS")
 
 # dgm
-dgm <- readRDS("Data/output.RDS") %>% .$DGM
+dgm <- readRDS("Results/output.RDS") %>% .$DGM
 # correlations
 corr <- dgm$varcov %>% 
   cov2cor() %>% 
@@ -74,12 +74,12 @@ rm(devsets)
 gc()
 
 # simulation results
-results <- readRDS("Data/output.RDS")$results
+results <- readRDS("Results/output.RDS")$results
 # add surrogate split results from hpc
-results_sur <- purrr::map(1:1000, ~{readRDS(paste0("./Results/hpc/output_sur_it_", .x, ".RDS"))})
+results_sur <- purrr::map(1:1000, ~{readRDS(paste0("./Results/output_hpc/output_sur_it_", .x, ".RDS"))})
 # combine and save
 results <- purrr::map2(results, results_sur, ~{cbind(.x, Y_pred_sur = .y[[1]]$Y_pred_sur)})
-saveRDS(results, "Results/full_results.RDS")
+saveRDS(results, "Results/results.RDS")
 rm(results_sur)
 gc()
 
