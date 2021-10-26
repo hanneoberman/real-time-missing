@@ -16,11 +16,14 @@ results <- readRDS("Data/output.RDS")$results
 gc()
 
 # # add surrogate split results from hpc
-# results_sur <- readRDS("Results/results_sur_1_to_10.RDS")
+results_sur <- purrr::map(1:1000, ~{readRDS(paste0("./Results/hpc/output_sur_it_", .x, ".RDS"))})
+results <- purrr::map2(results, results_sur, ~{cbind(.x, Y_pred_sur = .y[[1]]$Y_pred_sur)})
+rm(results_sur)
+gc()
 
 # add shortcuts
-meth <- names(results[[1]])[c(3:5, 9, 6:8, 10)]
-meth_lab <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF")
+meth <- names(results[[1]])[c(3:5, 9, 6:8, 10, 11)]
+meth_lab <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")
 meth_col <- c("#1269b0", "#81c454") %>% setNames(c("FLR", "RF"))
 pred_lab <- paste0("X", 1:10)
 pred_col <- c("#1269b0", "#7c1315") %>% setNames(c("Observed", "Missing"))
@@ -117,27 +120,34 @@ ggplot(patt, aes(x = name, y = row, fill = value)) +
 # devsets <-readRDS("Data/datasets.RDS") %>% purrr::map("devset")
 # reference_performance <- function(devset){
 # # flexible logistic regression
-# perf_FLR <- devset %>% 
+# perf_FLR <- devset %>%
 #   cbind(FLR = glm(Y ~ splines::ns(X1, df = 3) + . - X1,
 #               family = "binomial",
 #               data = .) %>% .$fitted.values)
 # cali_FLR <- perf_FLR %>% lm(Y ~ FLR, data = .) %>% .$coefficients
 # auc_FLR <- perf_FLR %>% pROC::roc(Y, FLR) %>% .$auc %>% as.numeric()
 # # random forest
-# perf_RF <- devset %>% 
+# perf_RF <- devset %>%
 #   cbind(RF = ranger::ranger(Y ~ ., data = .) %>% .$predictions)
 # auc_RF <- perf_RF %>% pROC::roc(Y, RF) %>% .$auc %>% as.numeric()
 # cali_RF <- perf_RF %>% lm(Y ~ RF, data = .) %>% .$coefficients
 # out <- data.frame(
-#   method = c("FLR", "RF"), 
+#   method = c("FLR", "RF"),
 #   intercept = c(cali_FLR[1], cali_RF[1]),
 #   slope = c(cali_FLR[2], cali_RF[2]),
 #   auc = c(auc_FLR, auc_RF))
 # return(out)
 # }
-# ref_perf <- devsets %>% purrr::map( ~reference_performance(.x))
+# ref_perf <- devsets %>% purrr::map_dfr( ~reference_performance(.x))
 # saveRDS(ref_perf, file = "Results/reference_performance.RDS")
 ref_perf <- readRDS("Results/reference_performance.RDS")
+
+ref_perf %>% tidyr::pivot_longer(cols = everything()[-1]) %>% 
+  ggplot(aes(y = value, group = method, fill = method)) +
+  geom_boxplot() +
+  facet_wrap(~name, scales = "free") +
+  scale_fill_manual(values = meth_col) +
+  theme_classic() 
 ```
 
 
