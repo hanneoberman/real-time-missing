@@ -177,6 +177,36 @@ Summary:
 - Terrible performance in terms of slope: SDI+FLR, SDI+RF, BOS+RF (SS+RF = mixed bag)
 
 
+## AUC
+
+```{r auc, message=FALSE, warning=FALSE}
+plot_perf(perf, "AUC")
+```
+
+Aim: As close to one as possible. Method with the highest AUC has the best discrimination between patients with and without the outcome (Y).
+
+Summary:
+
+- Best performance in terms of AUC: MDI+RF, BOS+FLR, CMI+FLR, MDI+FLR (CMI+RF on average good, but very wide range)
+
+- Worst performance in terms of AUC: SDI+FLR, SDI+RF, BOS+RF, SS+RF (wide range) 
+
+
+## MAE
+
+```{r mae, message=FALSE, warning=FALSE}
+plot_perf(perf, "MAE")
+```
+
+Aim: As close to zero as possible. Method with the lowest MAE has the best approximation of the true probability of Y.
+
+Summary:
+
+- Best performance in terms of MAE: SS+RF(???), BOS+FLR, CMI+FLR
+
+- Worst performance in terms of MAE: CMI+RF, SDI+FLR,, BOS+RF
+
+
 ## RMSE
 
 ```{r RMSE}
@@ -207,19 +237,7 @@ Summary:
 - Worst performance in terms of Brier score: SDI+FLR, SDI+RF, SS+RF (wide range) and BOS+RF 
 
 
-## AUC
 
-```{r auc, message=FALSE, warning=FALSE}
-plot_perf(perf, "AUC")
-```
-
-Aim: As close to one as possible. Method with the highest AUC has the best discrimination between patients with and without the outcome (Y).
-
-Summary:
-
-- Best performance in terms of AUC: MDI+RF, BOS+FLR, CMI+FLR, MDI+FLR (CMI+RF on average good, but very wide range)
-
-- Worst performance in terms of AUC: SDI+FLR, SDI+RF, BOS+RF, SS+RF (wide range) 
 
 
 ## Full Figure
@@ -227,16 +245,20 @@ Summary:
 ```{r all, fig.width=10}
 # make wide format long
 perf_long <- perf %>% 
-  tidyr::pivot_longer(cols = everything()[-c(1, 7, 8)], names_to = "Metric", values_to = "Performance") %>% 
+  tidyr::pivot_longer(cols = everything()[-c(1, 8, 9)], names_to = "Metric", values_to = "Performance") %>% 
   mutate(
-    Metric = factor(Metric, levels = c("Intercept", "Slope", "AUC", "RMSE", "Brier"), ordered = TRUE)
+    Metric = factor(Metric, levels = c("Intercept", "Slope", "AUC", "MAE", "RMSE", "Brier"), ordered = TRUE)
     )
+perf_long$vline <- NA
+perf_long[perf_long$Metric == "Intercept", "vline"] <- 0 
+perf_long[perf_long$Metric == "Slope", "vline"] <- 1
 
 # plot
 ggplot(perf_long, aes(y = Method, x = Performance, fill = Model)) +
+  geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
   geom_boxplot() +
   scale_y_discrete(limits = rev(meth_lab), labels = rev(c(miss_lab[-5], miss_lab))) +
-  facet_wrap(~Metric, scales = "free", nrow = 1) +
+  facet_wrap(~Metric, scales = "free", nrow = 2) +
   scale_fill_manual(values = meth_col) +
   theme_classic()
 
