@@ -97,12 +97,15 @@ auc <- purrr::map_dfr(
       .i[,-c(1:2)], ~{
         pROC::roc(.i$Y_true, .x) %>% .$auc %>% as.numeric()})}) %>%
   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "AUC") #%>%
-
+mae <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{(mean(abs(.x - .i$Y_prob)))})}) %>% 
+  tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "MAE")
+  
 # combine and save
 perf <- cali %>% 
   cbind(AUC = auc$AUC) %>% 
   cbind(RMSE = rmse$RMSE) %>% 
   cbind(Brier = brier$Brier) %>% 
+  cbind(mae$MAE) %>% 
   mutate(
     Method = factor(Method, levels = meth, labels = meth_lab, ordered = TRUE),
     Model = case_when(stringr::str_detect(Method, "FLR")~"FLR", TRUE~"RF"),
