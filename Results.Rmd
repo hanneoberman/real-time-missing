@@ -2,8 +2,8 @@
 title: "Simulation SIG"
 author: "Hanne Oberman"
 date: "7-10-2021"
-output: 
-  html_document: 
+output:
+  html_document:
     toc: yes
     theme: paper
 ---
@@ -43,13 +43,13 @@ $$
 -0.07 & 0.3   & -0.15 & -0.04 & -0.32 & 0.01  & 0.18  & -0.19 & 0.15  & 1.08
 \end{array} \right]
 $$
-The predictor variables $\bf{X}$ are used to define outcome $Y$. $Y$ is a binary variable representing the incidence of an event (e.g., mortality). There is a deterministic relationship between $\bf{X}$ and $Y$ through the logit link function, 
+There is a deterministic relationship between the predictor space $\bf{X}$ and the binary outcome $Y$ through the logit link function, 
 
-$$\text{logit}(Pr(Y = 1)) = \beta_o + \beta \times \bf{X} + \beta^* \times \mathrm{X_1} \times \bf{X},$$
+$$\text{logit}(Pr(Y = 1)) = \beta_o + \beta \times \bf{X} + \beta^* \times \mathrm{X_1} \times \bf{X} + \varepsilon,$$
 
 <!-- $$\text{logit}(Pr(Y_i = 1)) = \beta_o + \bf{X}^T_i\bf{\beta} + X_{1,i} \times \bf{X}^T_i\bf{\beta^*,}$$ -->
 
-where $\beta$ is a vector of regression coefficients, and $\beta^*$ is an additional vector of regression coefficients for the interaction between the first predictor and the predictor space. The regression coefficient vectors are visualized in Figure XYZ.
+where $\beta$s are regression coefficients, and residual error $\varepsilon \sim \mathcal{N}(0, 2)$. We differentiate between three types of regression coefficients: 1) the intercept, $\beta_0$; 2) the vector of regression coefficients for the main effects of the predictors, $\beta = \beta_1, \beta_2, ..., \beta_{10}$; and 3) an additional vector of regression coefficients for the interactions with the first predictor, $\beta^* = \beta^*_1, \beta^*_2, ..., \beta^*_{10}$. This introduces a polynomial effect of the second degree, $\beta^*_1 \times X_1^2$, and nine moderation effects. For additional non-linearity, we use a transformation in the effect of the second predictor, $\beta_2 \times \log(|X_2|)$. The regression coefficient vectors are visualized in Figure XYZ.
 
 $$
 \begin{array}{lllccccccccc}
@@ -57,7 +57,7 @@ $$
 \beta^*    &= &[&0.06	&0.04	&-0.02	&-0.02	&-0.06	&-0.05	&0.04	&0.05	&0.01	&-0.07&]
 \end{array}
 $$
-The intercept $\beta_0 = -3$, yielding an incidence in $Y$ of ~15%. 
+With an intercept of $\beta_0 = -3$, this yields an incidence in $Y$ of ~15%. 
 
 ```{r dgm}
 # load data
@@ -116,6 +116,9 @@ ref_long$vline <- NA
 ref_long[ref_long$name == "Intercept", "vline"] <- 0 
 ref_long[ref_long$name == "Slope", "vline"] <- 1
 
+ggplot(ref_long, aes(y = name, fill = method)) + 
+  geom_bar()
+
 ref_long %>% ggplot(aes(x = value, y = method, fill = method)) +
   geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
   geom_boxplot() +
@@ -144,7 +147,7 @@ The flexible logistic regression prediction model has somewhat better discrimina
 perf <- readRDS("Results/performance.RDS")
 
 # plot function
-plot_perf <- function(all_perf, metric = "RMSE"){
+plot_perf <- function(all_perf, metric){
   all_perf[, c("Method", "Model", "Strategy", metric)] %>% 
   setNames(c("Method", "Model", "Strategy", "metric")) %>% 
   ggplot(aes(x = metric, y = Method, fill = Model)) +
@@ -160,21 +163,21 @@ plot_perf <- function(all_perf, metric = "RMSE"){
 ## Calibration
 
 ```{r calibration}
-plot_perf(perf, "Intercept")
-plot_perf(perf, "Slope")
+plot_perf(perf, "Intercept") + list(geom_vline(xintercept = 0, color = "grey", linewidth = 2))
+plot_perf(perf, "Slope") + list(geom_vline(xintercept = 1, color = "grey", linewidth = 2))
 ```
 
 Aim: Intercept should be zero, slope should be one.
 
 Summary:
 
-- Best performance in terms of intercept: BOS+FLR, MDI+RF and MDI+FLR
+- Best performance in terms of intercept: BOS+FLR, MDI+RF, MDI+FLR
 
-- Worst performance in terms of intercept: SDI+FLR, SDI+RF, BOS+RF, SS+RF
+- Worst performance in terms of intercept: SDI+FLR, SS+RF (wide range), SDI+RF, BOS+RF (CMI+RF = mixed bag)
 
 - Best performance in terms of slope: BOS+FLR, CMI+FLR, MDI+RF and MDI+FLR
 
-- Terrible performance in terms of slope: SDI+FLR, SDI+RF, BOS+RF (SS+RF = mixed bag)
+- Terrible performance in terms of slope: SDI+FLR, SDI+RF, BOS+RF
 
 
 ## AUC
@@ -187,9 +190,9 @@ Aim: As close to one as possible. Method with the highest AUC has the best discr
 
 Summary:
 
-- Best performance in terms of AUC: MDI+RF, BOS+FLR, CMI+FLR, MDI+FLR (CMI+RF on average good, but very wide range)
+- Best performance in terms of AUC: SDI+RF (???), MDI+RF/CMI+FLR, MDI+FLR 
 
-- Worst performance in terms of AUC: SDI+FLR, SDI+RF, BOS+RF, SS+RF (wide range) 
+- Worst performance in terms of AUC: SDI+FLR, CMI+RF, SDI+RF, BOS+RF 
 
 
 ## MAE
@@ -217,9 +220,9 @@ Aim: As close to zero as possible. Method with the lowest RMSE has best recovere
 
 Summary:
 
-- Best performance in terms of RMSE: MDI+RF, BOS+FLR, MDI+FLR, CMI+FLR
+- Best performance in terms of RMSE: SDI+RF (???), MDI+BOS, MDI+FLR, CMI+FLR (BOS+FLR = mixed bag)
 
-- Worst performance in terms of RMSE: SDI+FLR, SDI+RF, SS+RF (very wide range) and BOS+RF 
+- Worst performance in terms of RMSE: SDI+FLR, CMI+RF, SS+RF (very wide range) and BOS+RF 
 
 
 ## Brier score
@@ -232,9 +235,9 @@ Aim: As close to zero as possible. Method with the lowest Brier score has best r
 
 Summary:
 
-- Best performance in terms of Brier score: MDI+RF, BOS+FLR, MDI+FLR, CMI+FLR
+- Best performance in terms of Brier score: SDI+RF, MDI+RF, MDI+FLR, CMI+FLR
 
-- Worst performance in terms of Brier score: SDI+FLR, SDI+RF, SS+RF (wide range) and BOS+RF 
+- Worst performance in terms of Brier score: SDI+FLR, CMI+RF, SS+RF (wide range) and BOS+RF 
 
 
 
