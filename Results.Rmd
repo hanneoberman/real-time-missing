@@ -276,8 +276,8 @@ perf_table <- perf %>%
   summarise(across(everything(), mean),
             across(everything(), round, 3))
 
-# perf_table %>% 
-#    write.table(file = "Results/perf.csv", sep = ";", row.names = FALSE)
+perf_table %>%
+   write.table(file = "Results/perf.csv", sep = ";", row.names = FALSE)
 
 knitr::kable(perf_table,
                   format = "html",
