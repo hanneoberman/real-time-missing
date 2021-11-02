@@ -18,7 +18,7 @@ library(ggplot2)
 # figure labels and colors
 pred_lab <- paste0("X", 1:10)
 pred_col <- c("#1269b0", "#7c1315") %>% setNames(c("Observed", "Missing"))
-meth_lab <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")
+meth_ord <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")
 meth_col <- c("#1269b0", "#81c454") %>% setNames(c("FLR", "RF"))
 miss_lab <- c("CMI", "SDI", "MDI", "BOS", "SS")
 plot_lab <- c(miss_lab[-5], miss_lab)
@@ -85,10 +85,10 @@ ggplot(coef, aes(x = pred, y = type, fill = value, label = text)) +
   theme_classic() +
   theme(legend.position = "bottom")
 
-ggplot(patt, aes(x = name, y = row, fill = value)) +
+ggplot(patt, aes(x = name, y = as.character(row), fill = value)) +
   geom_tile(color = "black") +
   scale_x_discrete(limits = pred_lab, expand = c(0,0)) +
-  scale_y_discrete(limits = 1:3, labels = paste("Pattern", 3:1), expand = c(0,0)) +
+  scale_y_discrete(limits = c("3", "2", "1"), labels = c("80% missing", "60% missing", "40% missing"), expand = c(0,0)) +
   scale_fill_manual(values = pred_col, name = "Predictor value") +
   labs(x = "", y = "") +
   theme_classic() +
@@ -116,10 +116,7 @@ ref_long$vline <- NA
 ref_long[ref_long$name == "Intercept", "vline"] <- 0 
 ref_long[ref_long$name == "Slope", "vline"] <- 1
 
-ggplot(ref_long, aes(y = name, fill = method)) + 
-  geom_bar()
-
-ref_long %>% ggplot(aes(x = value, y = method, fill = method)) +
+ref_long %>% filter(name != "AUC") %>% ggplot(aes(x = value, y = method, fill = method)) +
   geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
   geom_boxplot() +
   facet_wrap(~name, scales = "free") +
@@ -152,7 +149,7 @@ plot_perf <- function(all_perf, metric){
   setNames(c("Method", "Model", "Strategy", "metric")) %>% 
   ggplot(aes(x = metric, y = Method, fill = Model)) +
   geom_boxplot() +
-  scale_y_discrete(limits = rev(meth_lab), labels = rev(plot_lab)) +
+  scale_y_discrete(limits = rev(meth_ord), labels = rev(plot_lab)) +
   scale_fill_manual(values = meth_col) +
   theme_classic() +
   labs(x = metric, y = "Missing data strategy")
@@ -260,7 +257,7 @@ perf_long[perf_long$Metric == "Slope", "vline"] <- 1
 ggplot(perf_long, aes(y = Method, x = Performance, fill = Model)) +
   geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
   geom_boxplot() +
-  scale_y_discrete(limits = rev(meth_lab), labels = rev(c(miss_lab[-5], miss_lab))) +
+  scale_y_discrete(limits = rev(meth_ord), labels = rev(c(miss_lab[-5], miss_lab))) +
   facet_wrap(~Metric, scales = "free", nrow = 2) +
   scale_fill_manual(values = meth_col) +
   theme_classic()
