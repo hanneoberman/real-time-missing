@@ -141,7 +141,7 @@ The flexible logistic regression prediction model has somewhat better discrimina
 
 ```{r results}
 # load data
-perf <- readRDS("Results/performance.RDS")
+performance <- readRDS("Results/performance.RDS")
 
 # plot function
 plot_perf <- function(all_perf, metric){
@@ -160,8 +160,8 @@ plot_perf <- function(all_perf, metric){
 ## Calibration
 
 ```{r calibration}
-plot_perf(perf, "Intercept") + list(geom_vline(xintercept = 0, color = "grey", linewidth = 2))
-plot_perf(perf, "Slope") + list(geom_vline(xintercept = 1, color = "grey", linewidth = 2))
+plot_perf(performance, "Intercept") + list(geom_vline(xintercept = 0, color = "grey", linewidth = 2))
+plot_perf(performance, "Slope") + list(geom_vline(xintercept = 1, color = "grey", linewidth = 2))
 ```
 
 Aim: Intercept should be zero, slope should be one.
@@ -180,7 +180,7 @@ Summary:
 ## AUC
 
 ```{r auc, message=FALSE, warning=FALSE}
-plot_perf(perf, "AUC")
+plot_perf(performance, "AUC")
 ```
 
 Aim: As close to one as possible. Method with the highest AUC has the best discrimination between patients with and without the outcome (Y).
@@ -195,7 +195,7 @@ Summary:
 ## MAE
 
 ```{r mae, message=FALSE, warning=FALSE}
-plot_perf(perf, "MAE")
+plot_perf(performance, "MAE")
 ```
 
 Aim: As close to zero as possible. Method with the lowest MAE has the best approximation of the true probability of Y.
@@ -210,7 +210,7 @@ Summary:
 ## RMSE
 
 ```{r RMSE}
-plot_perf(perf, "RMSE")
+plot_perf(performance, "RMSE")
 ```
 
 Aim: As close to zero as possible. Method with the lowest RMSE has best recovered the original probability of Y.
@@ -225,7 +225,7 @@ Summary:
 ## Brier score
 
 ```{r brier}
-plot_perf(perf, "Brier")
+plot_perf(performance, "Brier")
 ```
 
 Aim: As close to zero as possible. Method with the lowest Brier score has best recovered the original observed Y.
@@ -244,7 +244,7 @@ Summary:
 
 ```{r all, fig.width=10}
 # make wide format long
-perf_long <- perf %>% 
+perf_long <- performance %>% 
   tidyr::pivot_longer(cols = everything()[-c(1, 8, 9)], names_to = "Metric", values_to = "Performance") %>% 
   mutate(
     Metric = factor(Metric, levels = c("Intercept", "Slope", "AUC", "MAE", "RMSE", "Brier"), ordered = TRUE)

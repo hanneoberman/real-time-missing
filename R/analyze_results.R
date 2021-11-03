@@ -85,8 +85,9 @@ rm(results_sur)
 gc()
 
 # calculate performance
+readRDS("Results/results.RDS")
 cali <- purrr::map_dfr(results, function(.i){
-  purrr::map_dfr(meth_lab, ~{lm(.i$Y_true ~ .i[ , .x])$coefficients %>% setNames(c("Intercept", "Slope"))}) %>% cbind(Method = meth_lab, .)
+  purrr::map_dfr(meth_lab, ~{lm(.i$Y_prob ~ .i[ , .x])$coefficients %>% setNames(c("Intercept", "Slope"))}) %>% cbind(Method = meth_lab, .)
 }) 
 rmse <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{sqrt(mean((.x - .i$Y_prob)^2))})}) %>% 
   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "RMSE") #%>% 
@@ -102,7 +103,7 @@ mae <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{(mean
   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "MAE")
   
 # combine and save
-perf <- cali %>% 
+performance <- cali %>% 
   cbind(AUC = auc$AUC) %>% 
   cbind(RMSE = rmse$RMSE) %>% 
   cbind(Brier = brier$Brier) %>% 
@@ -122,4 +123,4 @@ perf <- cali %>%
   #   Brier = NA,
   #   Model = "FLR",
   #   Strategy = "SS")) 
-saveRDS(perf, file = "./Results/performance.RDS")
+saveRDS(performance, file = "./Results/performance.RDS")
