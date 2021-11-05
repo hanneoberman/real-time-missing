@@ -2,14 +2,14 @@
 title: "Simulation SIG"
 author: "Hanne Oberman"
 date: "7-10-2021"
-output: 
-  html_document: 
+output:
+  html_document:
     toc: yes
     theme: paper
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 
 # packages
 library(dplyr)
@@ -18,7 +18,7 @@ library(ggplot2)
 # figure labels and colors
 pred_lab <- paste0("X", 1:10)
 pred_col <- c("#1269b0", "#7c1315") %>% setNames(c("Observed", "Missing"))
-meth_lab <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")
+meth_ord <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")
 meth_col <- c("#1269b0", "#81c454") %>% setNames(c("FLR", "RF"))
 miss_lab <- c("CMI", "SDI", "MDI", "BOS", "SS")
 plot_lab <- c(miss_lab[-5], miss_lab)
@@ -26,6 +26,38 @@ plot_lab <- c(miss_lab[-5], miss_lab)
 ```
 
 # Data Generating Mechanism
+
+We define 10 continuous predictor variables and 1 dichotomous outcome. The data generating mechanism of the predictor space is a multivariate normal distribution, $\bf{X} = \mathcal{N}(\bf{\mu}, \mathrm{\Sigma})$, where mean vector $\bf{\mu} = \mathrm{[0,0, ..., 0]}$ and covariance matrix $\Sigma$ is visualized in Figure XYZ.   
+
+$$
+{\Sigma} = \left[ \begin{array}{cccccccccc} 
+1.05  & -0.12 & 0.04  & -0.29 & 0.29  & -0.17 & 0.01  & 0     & -0.01 & -0.07 \\
+-0.12 & 1.08  & -0.31 & 0.26  & 0.08  & -0.03 & -0.04 & -0.11 & -0.17 & 0.3   \\
+0.04  & -0.31 & 1.08  & -0.19 & 0.01  & -0.29 & 0.2   & 0.07  & -0.18 & -0.15 \\
+-0.29 & 0.26  & -0.19 & 1.07  & -0.2  & 0     & -0.12 & 0.01  & -0.19 & -0.04 \\
+0.29  & 0.08  & 0.01  & -0.2  & 1.08  & -0.25 & -0.14 & 0.02  & 0.15  & -0.32 \\
+-0.17 & -0.03 & -0.29 & 0     & -0.25 & 1.08  & -0.13 & -0.04 & -0.29 & 0.01  \\
+0.01  & -0.04 & 0.2   & -0.12 & -0.14 & -0.13 & 1.04  & -0.16 & -0.17 & 0.18  \\
+0     & -0.11 & 0.07  & 0.01  & 0.02  & -0.04 & -0.16 & 1.02  & 0.1   & -0.19 \\
+-0.01 & -0.17 & -0.18 & -0.19 & 0.15  & -0.29 & -0.17 & 0.1   & 1.08  & 0.15  \\
+-0.07 & 0.3   & -0.15 & -0.04 & -0.32 & 0.01  & 0.18  & -0.19 & 0.15  & 1.08
+\end{array} \right]
+$$
+There is a deterministic relationship between the predictor space $\bf{X}$ and the binary outcome $Y$ through the logit link function, 
+
+$$\text{logit}(Pr(Y = 1)) = \beta_o + \beta \times \bf{X} + \beta^* \times \mathrm{X_1} \times \bf{X} + \varepsilon,$$
+
+<!-- $$\text{logit}(Pr(Y_i = 1)) = \beta_o + \bf{X}^T_i\bf{\beta} + X_{1,i} \times \bf{X}^T_i\bf{\beta^*,}$$ -->
+
+where $\beta$s are regression coefficients, and residual error $\varepsilon \sim \mathcal{N}(0, 2)$. We differentiate between three types of regression coefficients: 1) the intercept, $\beta_0$; 2) the vector of regression coefficients for the main effects of the predictors, $\beta = \beta_1, \beta_2, ..., \beta_{10}$; and 3) an additional vector of regression coefficients for the interactions with the first predictor, $\beta^* = \beta^*_1, \beta^*_2, ..., \beta^*_{10}$. This introduces a polynomial effect of the second degree, $\beta^*_1 \times X_1^2$, and nine moderation effects. For additional non-linearity, we use a transformation in the effect of the second predictor, $\beta_2 \times \log(|X_2|)$. The regression coefficient vectors are visualized in Figure XYZ.
+
+$$
+\begin{array}{lllccccccccc}
+\beta     &= &[&-0.27	&0.53	&-0.97	&-0.05	&0.62	&-0.52	&0.53	&-0.61	&0.17	&-0.55&]\\
+\beta^*    &= &[&0.06	&0.04	&-0.02	&-0.02	&-0.06	&-0.05	&0.04	&0.05	&0.01	&-0.07&]
+\end{array}
+$$
+With an intercept of $\beta_0 = -3$, this yields an incidence in $Y$ of ~15%. 
 
 ```{r dgm}
 # load data
@@ -41,26 +73,32 @@ ggplot(corr, aes(x = pred, y = name, fill = value, label = text)) +
   scale_y_discrete(limits = rev(pred_lab)) +
   scale_fill_viridis_c(na.value = 0, alpha = .6, name = "Correlation") +
   labs(x = "", y = "") +
-  theme_classic() 
+  theme_classic() +
+  theme(legend.position = "bottom")
 
 ggplot(coef, aes(x = pred, y = type, fill = value, label = text)) +
   geom_tile() +
   geom_text() +
-  scale_y_discrete(limits = c("Y*", "Y")) +
+  scale_y_discrete(limits = c("Y*", "Y", letters[1:6]), labels = c(expression(beta*"*"), expression(beta), rep("", 6))) +
   scale_fill_viridis_c(na.value = 0, alpha = .6, name = "Coefficient") +
   labs(x = "", y = "") +
-  theme_classic() 
+  theme_classic() +
+  theme(legend.position = "bottom")
 
-ggplot(patt, aes(x = name, y = row, fill = value)) +
+ggplot(patt, aes(x = name, y = as.character(row), fill = value)) +
   geom_tile(color = "black") +
-  scale_x_discrete(limits = pred_lab) +
-  scale_y_discrete(limits = 1:3, labels = paste("Pattern", 3:1)) +
+  scale_x_discrete(limits = pred_lab, expand = c(0,0)) +
+  scale_y_discrete(limits = c("3", "2", "1"), labels = c("80% missing", "60% missing", "40% missing"), expand = c(0,0)) +
   scale_fill_manual(values = pred_col, name = "Predictor value") +
   labs(x = "", y = "") +
-  theme_minimal() 
+  theme_classic() +
+  theme(legend.position = "bottom")
+
 ```
 
 # Reference Performance
+
+On the complete development set data, we observe the following performance of flexible logistic regression and random forest prediction models in terms of calibration and discrimination. The grey lines in Figure XYZ represent perfect calibration.
 
 ```{r reference}
 # load data
@@ -72,21 +110,29 @@ mean_ref <- ref_perf %>%
   summarise(auc = mean(auc), int = mean(intercept), slo = mean(slope))
 
 # plot
-ref_perf %>% tidyr::pivot_longer(cols = everything()[-1]) %>% 
-  mutate(name = factor(name, levels = c("intercept", "slope", "auc"), labels = c( "Intercept", "Slope","AUC"), ordered = TRUE)) %>% 
-  ggplot(aes(x = value, y = method, fill = method)) +
+ref_long <- ref_perf %>% tidyr::pivot_longer(cols = everything()[-1]) %>% 
+  mutate(name = factor(name, levels = c("intercept", "slope", "auc"), labels = c( "Intercept", "Slope","AUC"), ordered = TRUE)) 
+ref_long$vline <- NA
+ref_long[ref_long$name == "Intercept", "vline"] <- 0 
+ref_long[ref_long$name == "Slope", "vline"] <- 1
+
+ref_long %>% filter(name != "AUC") %>% ggplot(aes(x = value, y = method, fill = method)) +
+  geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
   geom_boxplot() +
   facet_wrap(~name, scales = "free") +
   scale_y_discrete(limits = c("RF", "FLR")) + 
   scale_fill_manual(values = meth_col) +
-  theme_classic() 
+  theme_classic() +
+  labs(x = "", y = "")
 ```
 
-On complete data, the flexible logistics regression has slightly better performance than the random forest:
+On complete data, the flexible logistics regression and random forest prediction models have equivalent calibration:
 
 - FLR intercept closer to 0 than RF (`r mean_ref$int %>% round(.,3)`, respectively);
 
-- FLR slope *not* closer to 1 than RF (`r mean_ref$slo %>% round(.,3)`, respectively);
+- FLR slope further from 1 than RF (`r mean_ref$slo %>% round(.,3)`, respectively).
+
+The flexible logistic regression prediction model has somewhat better discrimination than the random forest:
 
 - FLR C-index higher than RF (`r mean_ref$auc %>% round(.,3)`, respectively).
 
@@ -95,15 +141,15 @@ On complete data, the flexible logistics regression has slightly better performa
 
 ```{r results}
 # load data
-perf <- readRDS("Results/performance.RDS")
+performance <- readRDS("Results/performance.RDS")
 
 # plot function
-plot_perf <- function(all_perf, metric = "RMSE"){
+plot_perf <- function(all_perf, metric){
   all_perf[, c("Method", "Model", "Strategy", metric)] %>% 
   setNames(c("Method", "Model", "Strategy", "metric")) %>% 
   ggplot(aes(x = metric, y = Method, fill = Model)) +
   geom_boxplot() +
-  scale_y_discrete(limits = rev(meth_lab), labels = plot_lab) +
+  scale_y_discrete(limits = rev(meth_ord), labels = rev(plot_lab)) +
   scale_fill_manual(values = meth_col) +
   theme_classic() +
   labs(x = metric, y = "Missing data strategy")
@@ -114,83 +160,105 @@ plot_perf <- function(all_perf, metric = "RMSE"){
 ## Calibration
 
 ```{r calibration}
-plot_perf(perf, "Intercept")
-plot_perf(perf, "Slope")
+plot_perf(performance, "Intercept") + list(geom_vline(xintercept = 0, color = "grey", linewidth = 2))
+plot_perf(performance, "Slope") + list(geom_vline(xintercept = 1, color = "grey", linewidth = 2))
 ```
 
 Aim: Intercept should be zero, slope should be one.
 
 Summary:
 
-- Best performance in terms of intercept: BOS+FLR, MDI+RF and MDI+FLR
+- Best performance in terms of intercept: BOS+FLR, MDI+RF, MDI+FLR
 
-- Worst performance in terms of intercept: SDI+FLR, SDI+RF, BOS+RF, SS+RF
+- Worst performance in terms of intercept: SDI+FLR, SS+RF (wide range), SDI+RF, BOS+RF (CMI+RF = mixed bag)
 
 - Best performance in terms of slope: BOS+FLR, CMI+FLR, MDI+RF and MDI+FLR
 
-- Terrible performance in terms of slope: SDI+FLR, SDI+RF, BOS+RF (SS+RF = mixed bag)
-
-
-## RMSE
-
-```{r RMSE}
-plot_perf(perf, "RMSE")
-```
-
-Aim: As close to zero as possible. Method with the lowest RMSE has best recovered the original probability of Y.
-
-Summary:
-
-- Best performance in terms of RMSE: MDI+RF, BOS+FLR, MDI+FLR, CMI+FLR
-
-- Worst performance in terms of RMSE: SDI+FLR, SDI+RF, SS+RF (very wide range) and BOS+RF 
-
-
-## Brier score
-
-```{r brier}
-plot_perf(perf, "Brier")
-```
-
-Aim: As close to zero as possible. Method with the lowest Brier score has best recovered the original observed Y.
-
-Summary:
-
-- Best performance in terms of Brier score: MDI+RF, BOS+FLR, MDI+FLR, CMI+FLR
-
-- Worst performance in terms of Brier score: SDI+FLR, SDI+RF, SS+RF (wide range) and BOS+RF 
+- Terrible performance in terms of slope: SDI+FLR, SDI+RF, BOS+RF
 
 
 ## AUC
 
 ```{r auc, message=FALSE, warning=FALSE}
-plot_perf(perf, "AUC")
+plot_perf(performance, "AUC")
 ```
 
 Aim: As close to one as possible. Method with the highest AUC has the best discrimination between patients with and without the outcome (Y).
 
 Summary:
 
-- Best performance in terms of AUC: MDI+RF, BOS+FLR, CMI+FLR, MDI+FLR (CMI+RF on average good, but very wide range)
+- Best performance in terms of AUC: SDI+RF (???), MDI+RF/CMI+FLR, MDI+FLR 
 
-- Worst performance in terms of AUC: SDI+FLR, SDI+RF, BOS+RF, SS+RF (wide range) 
+- Worst performance in terms of AUC: SDI+FLR, CMI+RF, SDI+RF, BOS+RF 
+
+
+## MAE
+
+```{r mae, message=FALSE, warning=FALSE}
+plot_perf(performance, "MAE")
+```
+
+Aim: As close to zero as possible. Method with the lowest MAE has the best approximation of the true probability of Y.
+
+Summary:
+
+- Best performance in terms of MAE: SS+RF(???), BOS+FLR, CMI+FLR
+
+- Worst performance in terms of MAE: CMI+RF, SDI+FLR,, BOS+RF
+
+
+## RMSE
+
+```{r RMSE}
+plot_perf(performance, "RMSE")
+```
+
+Aim: As close to zero as possible. Method with the lowest RMSE has best recovered the original probability of Y.
+
+Summary:
+
+- Best performance in terms of RMSE: SDI+RF (???), MDI+BOS, MDI+FLR, CMI+FLR (BOS+FLR = mixed bag)
+
+- Worst performance in terms of RMSE: SDI+FLR, CMI+RF, SS+RF (very wide range) and BOS+RF 
+
+
+## Brier score
+
+```{r brier}
+plot_perf(performance, "Brier")
+```
+
+Aim: As close to zero as possible. Method with the lowest Brier score has best recovered the original observed Y.
+
+Summary:
+
+- Best performance in terms of Brier score: SDI+RF, MDI+RF, MDI+FLR, CMI+FLR
+
+- Worst performance in terms of Brier score: SDI+FLR, CMI+RF, SS+RF (wide range) and BOS+RF 
+
+
+
 
 
 ## Full Figure
 
 ```{r all, fig.width=10}
 # make wide format long
-perf_long <- perf %>% 
-  tidyr::pivot_longer(cols = everything()[-c(1, 7, 8)], names_to = "Metric", values_to = "Performance") %>% 
+perf_long <- performance %>% 
+  tidyr::pivot_longer(cols = everything()[-c(1, 8, 9)], names_to = "Metric", values_to = "Performance") %>% 
   mutate(
-    Metric = factor(Metric, levels = c("Intercept", "Slope", "AUC", "RMSE", "Brier"), ordered = TRUE)
+    Metric = factor(Metric, levels = c("Intercept", "Slope", "AUC", "MAE", "RMSE", "Brier"), ordered = TRUE)
     )
+perf_long$vline <- NA
+perf_long[perf_long$Metric == "Intercept", "vline"] <- 0 
+perf_long[perf_long$Metric == "Slope", "vline"] <- 1
 
 # plot
 ggplot(perf_long, aes(y = Method, x = Performance, fill = Model)) +
+  geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
   geom_boxplot() +
-  scale_y_discrete(limits = rev(meth_lab), labels = rev(c(miss_lab[-5], miss_lab))) +
-  facet_wrap(~Metric, scales = "free", nrow = 1) +
+  scale_y_discrete(limits = rev(meth_ord), labels = rev(c(miss_lab[-5], miss_lab))) +
+  facet_wrap(~Metric, scales = "free", nrow = 2) +
   scale_fill_manual(values = meth_col) +
   theme_classic()
 
@@ -205,8 +273,8 @@ perf_table <- perf %>%
   summarise(across(everything(), mean),
             across(everything(), round, 3))
 
-# perf_table %>% 
-#    write.table(file = "Results/perf.csv", sep = ";", row.names = FALSE)
+perf_table %>%
+   write.table(file = "Results/perf.csv", sep = ";", row.names = FALSE)
 
 knitr::kable(perf_table,
                   format = "html",
