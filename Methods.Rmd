@@ -1,0 +1,107 @@
+---
+title: "SIG Methods"
+author: "Hanne Oberman"
+date: "7-10-2021"
+output:
+  html_document:
+    toc: yes
+    theme: paper
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+
+# packages
+library(dplyr)
+library(ggplot2)
+
+# figure labels and colors
+pred_lab <- paste0("X", 1:10)
+pred_col <- c("#1269b0", "#7c1315") %>% setNames(c("Observed", "Missing"))
+```
+
+# Data Generating Mechanism
+
+## Predictor space
+
+We define 10 continuous predictor variables and 1 dichotomous outcome. The data generating mechanism of the predictor space is a multivariate normal distribution, $\bf{X} = \mathcal{N}(\bf{\mu}, \mathrm{\Sigma})$, where mean vector $\bf{\mu} = \mathrm{[0,0, ..., 0]}$ and covariance matrix $\Sigma$ is visualized in Figure XYZ.   
+
+$$
+{\Sigma} = \left[ \begin{array}{cccccccccc} 
+1.05  & -0.12 & 0.04  & -0.29 & 0.29  & -0.17 & 0.01  & 0     & -0.01 & -0.07 \\
+-0.12 & 1.08  & -0.31 & 0.26  & 0.08  & -0.03 & -0.04 & -0.11 & -0.17 & 0.3   \\
+0.04  & -0.31 & 1.08  & -0.19 & 0.01  & -0.29 & 0.2   & 0.07  & -0.18 & -0.15 \\
+-0.29 & 0.26  & -0.19 & 1.07  & -0.2  & 0     & -0.12 & 0.01  & -0.19 & -0.04 \\
+0.29  & 0.08  & 0.01  & -0.2  & 1.08  & -0.25 & -0.14 & 0.02  & 0.15  & -0.32 \\
+-0.17 & -0.03 & -0.29 & 0     & -0.25 & 1.08  & -0.13 & -0.04 & -0.29 & 0.01  \\
+0.01  & -0.04 & 0.2   & -0.12 & -0.14 & -0.13 & 1.04  & -0.16 & -0.17 & 0.18  \\
+0     & -0.11 & 0.07  & 0.01  & 0.02  & -0.04 & -0.16 & 1.02  & 0.1   & -0.19 \\
+-0.01 & -0.17 & -0.18 & -0.19 & 0.15  & -0.29 & -0.17 & 0.1   & 1.08  & 0.15  \\
+-0.07 & 0.3   & -0.15 & -0.04 & -0.32 & 0.01  & 0.18  & -0.19 & 0.15  & 1.08
+\end{array} \right]
+$$
+```{r varcov}
+# load data
+corr <- readRDS("Data/correlations.RDS")
+# plot
+ggplot(corr, aes(x = pred, y = name, fill = value, label = text)) +
+  geom_tile() +
+  geom_text() +
+  scale_x_discrete(limits = pred_lab) +
+  scale_y_discrete(limits = rev(pred_lab)) +
+  scale_fill_viridis_c(na.value = 0, alpha = .6, name = "Correlation") +
+  labs(x = "", y = "") +
+  theme_classic() +
+  theme(legend.position = "bottom")
+```
+
+
+## Outcome
+
+There is a deterministic relationship between the predictor space $\bf{X}$ and the binary outcome $Y$ through the logit link function, 
+
+$$\text{logit}(Pr(Y = 1)) = \beta_o + \beta \times \bf{X} + \beta^* \times \mathrm{X_1} \times \bf{X} + \varepsilon,$$
+
+<!-- $$\text{logit}(Pr(Y_i = 1)) = \beta_o + \bf{X}^T_i\bf{\beta} + X_{1,i} \times \bf{X}^T_i\bf{\beta^*,}$$ -->
+
+where $\beta$s are regression coefficients, and residual error $\varepsilon \sim \mathcal{N}(0, 2)$. We differentiate between three types of regression coefficients: 1) the intercept, $\beta_0$; 2) the vector of regression coefficients for the main effects of the predictors, $\beta = \beta_1, \beta_2, ..., \beta_{10}$; and 3) an additional vector of regression coefficients for the interactions with the first predictor, $\beta^* = \beta^*_1, \beta^*_2, ..., \beta^*_{10}$. This introduces a polynomial effect of the second degree, $\beta^*_1 \times X_1^2$, and nine moderation effects. For additional non-linearity, we use a transformation in the effect of the second predictor, $\beta_2 \times \log(|X_2|)$. The regression coefficient vectors are visualized in Figure XYZ.
+
+$$
+\begin{array}{lllccccccccc}
+\beta     &= &[&-0.27	&0.53	&-0.97	&-0.05	&0.62	&-0.52	&0.53	&-0.61	&0.17	&-0.55&]\\
+\beta^*    &= &[&0.06	&0.04	&-0.02	&-0.02	&-0.06	&-0.05	&0.04	&0.05	&0.01	&-0.07&]
+\end{array}
+$$
+With an intercept of $\beta_0 = -3$, this yields an incidence in $Y$ of ~15%. 
+
+```{r betas}
+# load data
+coef <- readRDS("Data/coefficients.RDS")
+# plot
+ggplot(coef, aes(x = pred, y = type, fill = value, label = text)) +
+  geom_tile() +
+  geom_text() +
+  scale_y_discrete(limits = c("Y*", "Y", letters[1:6]), labels = c(expression(beta*"*"), expression(beta), rep("", 6))) +
+  scale_fill_viridis_c(na.value = 0, alpha = .6, name = "Coefficient") +
+  labs(x = "", y = "") +
+  theme_classic() +
+  theme(legend.position = "bottom")
+```
+
+## Missing data pattern
+
+```{r pat}
+# load data
+patt <- readRDS("Data/missing_data_pattern.RDS")
+# plot
+ggplot(patt, aes(x = name, y = as.character(row), fill = value)) +
+  geom_tile(color = "black") +
+  scale_x_discrete(limits = pred_lab, expand = c(0,0)) +
+  scale_y_discrete(limits = c("3", "2", "1"), labels = c("80% missing", "60% missing", "40% missing"), expand = c(0,0)) +
+  scale_fill_manual(values = pred_col, name = "Predictor value") +
+  labs(x = "", y = "") +
+  theme_classic() +
+  theme(legend.position = "bottom")
+
+```
+
