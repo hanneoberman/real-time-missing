@@ -365,6 +365,7 @@ set.seed(seed)
 
 # create datasets
 sim_data <- replicate(datasets(DGM, p, n_devset, n_valset, miss_mech), n = n_sim, simplify = FALSE)
+saveRDS(sim_data, file = "Data/datasets_MNAR.RDS")
 
 # run analyses
 results <- map(sim_data, ~analyses(.x$devset, .x$valset, p, m, surrogate_split = FALSE))
@@ -376,22 +377,22 @@ results <- map(sim_data, ~analyses(.x$devset, .x$valset, p, m, surrogate_split =
 
 # export results 
 output <- list(DGM = DGM, results = results, seed = .Random.seed) 
-saveRDS(output, file = "output.RDS")
+saveRDS(output, file = "Results/output_MNAR.RDS")
 
 ##################
 # surrogate splits
 ##################
-set.seed(output$seed)
-max_it <- 1
-results_sur <- map(sim_data[1:max_it], ~analyses(.x$devset, .x$valset, p, m, surrogate_split = TRUE))
-sur_out <- list(results_sur = results_sur, seed = .Random.seed, maxit = max_it)
-sur_name <- paste0("sur_", max_it, ".RDS")
-saveRDS(sur_out, file = sur_name)
-
-set.seed(sur_out$seed)
-min_it <- sur_out$maxit + 1
-max_it <- 10
-results_sur <- map(sim_data[min_it:max_it], ~analyses(.x$devset, .x$valset, p, m, surrogate_split = TRUE))
-sur_out <- list(results_sur = results_sur, seed = .Random.seed, maxit = max_it)
-sur_name <- paste0("sur_", min_it, "to", max_it, ".RDS")
-saveRDS(sur_out, file = sur_name)
+# set.seed(output$seed)
+# max_it <- 1
+# results_sur <- map(sim_data[1:max_it], ~analyses(.x$devset, .x$valset, p, m, surrogate_split = TRUE))
+# sur_out <- list(results_sur = results_sur, seed = .Random.seed, maxit = max_it)
+# sur_name <- paste0("sur_", max_it, ".RDS")
+# saveRDS(sur_out, file = sur_name)
+# 
+# set.seed(sur_out$seed)
+# min_it <- sur_out$maxit + 1
+# max_it <- 10
+# results_sur <- map(sim_data[min_it:max_it], ~analyses(.x$devset, .x$valset, p, m, surrogate_split = TRUE))
+# sur_out <- list(results_sur = results_sur, seed = .Random.seed, maxit = max_it)
+# sur_name <- paste0("sur_", min_it, "to", max_it, ".RDS")
+# saveRDS(sur_out, file = sur_name)
