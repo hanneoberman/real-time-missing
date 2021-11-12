@@ -40,7 +40,7 @@ reference_performance <- function(devset, valset){
 # reference performance
 refsets <- readRDS("Data/datasets.RDS") %>% purrr::map("devset")
 devsets <- refsets[1:100]
-valsets <- refsets[101:300] %>% do.call(rbind.data.frame, .) %>% cbind(set = 1:100) %>% split(., .$set)
+valsets <- refsets[101:105] %>% do.call(rbind.data.frame, .) %>% cbind(set = 1:100) %>% split(., .$set)
 ref_perf <- purrr::map2_dfr(devsets, valsets, ~reference_performance(.x, .y))
 saveRDS(ref_perf, file = "Results/reference_performance.RDS")
 rm(devsets)

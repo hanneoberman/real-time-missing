@@ -170,11 +170,14 @@ Summary:
 ## Full Figure
 
 ```{r all, fig.width=10}
+# load data
+performance <- readRDS("Results/performance.RDS")
+
 # make wide format long
 perf_long <- performance %>% 
   tidyr::pivot_longer(cols = everything()[-c(1, 8, 9)], names_to = "Metric", values_to = "Performance") %>% 
   mutate(
-    Metric = factor(Metric, levels = c("Intercept", "Slope", "AUC", "MAE", "RMSE", "Brier"), ordered = TRUE)
+    Metric = factor(Metric, levels = c("Intercept", "Slope", "AUC", "MAE", "RMSE", "Brier"), labels = c("CITL", "Calibration slope", "C-statistic", "MAE", "RMSE", "Brier score"), ordered = TRUE)
     )
 perf_long$vline <- NA
 perf_long[perf_long$Metric == "Intercept", "vline"] <- 0 
@@ -185,7 +188,7 @@ ggplot(perf_long, aes(y = Method, x = Performance, fill = Model)) +
   geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
   geom_boxplot() +
   scale_y_discrete(limits = rev(meth_ord), labels = rev(c(miss_lab[-5], miss_lab))) +
-  facet_wrap(~Metric, scales = "free", nrow = 2) +
+  facet_wrap(~Metric, scales = "free_x", nrow = 2) +
   scale_fill_manual(values = meth_col) +
   theme_classic()
 
