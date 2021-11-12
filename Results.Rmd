@@ -34,17 +34,17 @@ ref_perf <- readRDS("Results/reference_performance.RDS")
 # table
 mean_ref <- ref_perf %>% 
   group_by(method) %>% 
-  summarise(auc = mean(auc), int = mean(intercept), slo = mean(slope))
+  summarise(auc = mean(auc), int = mean(intercept), slo = mean(slope), rmse = mean(rmse), brier = mean(brier), mae = mean(mae))
 
 # plot
 ref_long <- ref_perf %>% tidyr::pivot_longer(cols = everything()[-1]) %>% 
-  mutate(name = factor(name, levels = c("intercept", "slope", "auc"), labels = c( "Intercept", "Slope","AUC"), ordered = TRUE)) 
-ref_long$vline <- NA
-ref_long[ref_long$name == "Intercept", "vline"] <- 0 
-ref_long[ref_long$name == "Slope", "vline"] <- 1
+  mutate(name = factor(name, levels = c("intercept", "slope", "auc", "rmse", "brier", "mae"), labels = c( "Intercept", "Slope", "AUC", "RMSE", "Brier", "MAE"), ordered = TRUE)) 
+# ref_long$vline <- NA
+# ref_long[ref_long$name == "Intercept", "vline"] <- 0 
+# ref_long[ref_long$name == "Slope", "vline"] <- 1
 
-ref_long %>% filter(name != "AUC") %>% ggplot(aes(x = value, y = method, fill = method)) +
-  geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
+ref_long %>%  ggplot(aes(x = value, y = method, fill = method)) +
+  #geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
   geom_boxplot() +
   facet_wrap(~name, scales = "free") +
   scale_y_discrete(limits = c("RF", "FLR")) + 
