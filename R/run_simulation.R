@@ -14,13 +14,14 @@ library("party") #for prediction
 library("ranger") #for prediction
 
 # parameters
-seed <- 11 #random seed
+seed <- 13 #random seed: 11 for MAR, 13 for MNAR
 n_sim <- 1000 #number of repetitions #TODO: make this 1000
 n_devset <- 10000 #population size #TODO: make this 10000
 n_valset <- 20000 #sample size #TODO: make this 20000
 p <- 10 #number of predictors 
 # p_missing <- c(4, 6, 8) #missing predictors (hard coded)
 m <- 51 #number of imputations #TODO: make this 51
+miss_mech <- "MNAR" #missingness mechanism
 
 ##################
 # define functions
@@ -173,11 +174,12 @@ fit_mod <-
 # according to the missingness parameters from define_DGM()
 create_miss <- function(validation_set,
                         missingness_pat,
-                        missingness_type) {
+                        missingness_type,
+                        missingness_mech = "MAR") {
   # ampute the complete valset
   incomplete <- validation_set %>%
     mice::ampute(
-      mech = "MAR",
+      mech = missingness_mech,
       prop = 0.999,
       patterns = missingness_pat,
       type = missingness_type
@@ -323,7 +325,7 @@ impute_cond <- function(vals, dev_means, dev_cov, m) {
 # new sim functions
 ###################
 
-datasets <- function(DGM, p, n_devset, n_valset) {
+datasets <- function(DGM, p, n_devset, n_valset, miss_mech) {
   # create devset and fit models 
   dev <- generate_data(
     sample_size = n_devset,
@@ -341,7 +343,8 @@ datasets <- function(DGM, p, n_devset, n_valset) {
     interaction = TRUE
   ) %>%
     create_miss(missingness_pat = DGM$miss_pat,
-                missingness_type = DGM$miss_type
+                missingness_type = DGM$miss_type,
+                missingness_mech = miss_mech
     ) 
   # output
   return(list(devset=dev, valset = val))
@@ -361,7 +364,8 @@ DGM <- define_DGM(p, seed)
 set.seed(seed)
 
 # create datasets
-sim_data <- replicate(datasets(DGM, p, n_devset, n_valset), n = n_sim, simplify = FALSE)
+sim_data <- replicate(datasets(DGM, p, n_devset, n_valset, miss_mech), n = n_sim, simplify = FALSE)
+saveRDS(sim_data, file = "Data/datasets_MNAR.RDS")
 
 # run analyses
 results <- map(sim_data, ~analyses(.x$devset, .x$valset, p, m, surrogate_split = FALSE))
@@ -373,22 +377,22 @@ results <- map(sim_data, ~analyses(.x$devset, .x$valset, p, m, surrogate_split =
 
 # export results 
 output <- list(DGM = DGM, results = results, seed = .Random.seed) 
-saveRDS(output, file = "output.RDS")
+saveRDS(output, file = "Results/output_MNAR.RDS")
 
 ##################
 # surrogate splits
 ##################
-set.seed(output$seed)
-max_it <- 1
-results_sur <- map(sim_data[1:max_it], ~analyses(.x$devset, .x$valset, p, m, surrogate_split = TRUE))
-sur_out <- list(results_sur = results_sur, seed = .Random.seed, maxit = max_it)
-sur_name <- paste0("sur_", max_it, ".RDS")
-saveRDS(sur_out, file = sur_name)
-
-set.seed(sur_out$seed)
-min_it <- sur_out$maxit + 1
-max_it <- 10
-results_sur <- map(sim_data[min_it:max_it], ~analyses(.x$devset, .x$valset, p, m, surrogate_split = TRUE))
-sur_out <- list(results_sur = results_sur, seed = .Random.seed, maxit = max_it)
-sur_name <- paste0("sur_", min_it, "to", max_it, ".RDS")
-saveRDS(sur_out, file = sur_name)
+# set.seed(output$seed)
+# max_it <- 1
+# results_sur <- map(sim_data[1:max_it], ~analyses(.x$devset, .x$valset, p, m, surrogate_split = TRUE))
+# sur_out <- list(results_sur = results_sur, seed = .Random.seed, maxit = max_it)
+# sur_name <- paste0("sur_", max_it, ".RDS")
+# saveRDS(sur_out, file = sur_name)
+# 
+# set.seed(sur_out$seed)
+# min_it <- sur_out$maxit + 1
+# max_it <- 10
+# results_sur <- map(sim_data[min_it:max_it], ~analyses(.x$devset, .x$valset, p, m, surrogate_split = TRUE))
+# sur_out <- list(results_sur = results_sur, seed = .Random.seed, maxit = max_it)
+# sur_name <- paste0("sur_", min_it, "to", max_it, ".RDS")
+# saveRDS(sur_out, file = sur_name)
