@@ -1,0 +1,216 @@
+---
+title: "SIG Results"
+author: "Hanne Oberman"
+date: "7-10-2021"
+output:
+  html_document:
+    toc: yes
+    theme: paper
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+
+# packages
+library(dplyr)
+library(ggplot2)
+
+# figure labels and colors
+meth_ord <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")
+meth_col <- c("#1269b0", "#81c454") %>% setNames(c("FLR", "RF"))
+miss_lab <- c("CMI", "SDI", "MDI", "BOS", "SS")
+plot_lab <- c(miss_lab[-5], miss_lab)
+
+```
+
+# Reference Performance
+
+On the complete development set data, we observe the following performance of flexible logistic regression and random forest prediction models in terms of calibration and discrimination. The grey lines in Figure XYZ represent perfect calibration.
+
+```{r reference}
+# load data
+ref_perf <- readRDS("Results/reference_performance.RDS")
+
+# table
+mean_ref <- ref_perf %>% 
+  group_by(method) %>% 
+  summarise(auc = mean(auc), int = mean(intercept), slo = mean(slope), rmse = mean(rmse), brier = mean(brier), mae = mean(mae))
+
+# plot
+ref_long <- ref_perf %>% tidyr::pivot_longer(cols = everything()[-1]) %>% 
+  mutate(name = factor(name, levels = c("intercept", "slope", "auc", "rmse", "brier", "mae"), labels = c( "Intercept", "Slope", "AUC", "RMSE", "Brier", "MAE"), ordered = TRUE)) 
+# ref_long$vline <- NA
+# ref_long[ref_long$name == "Intercept", "vline"] <- 0 
+# ref_long[ref_long$name == "Slope", "vline"] <- 1
+
+ref_long %>%  ggplot(aes(x = value, y = method, fill = method)) +
+  #geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
+  geom_boxplot() +
+  facet_wrap(~name, scales = "free") +
+  scale_y_discrete(limits = c("RF", "FLR")) + 
+  scale_fill_manual(values = meth_col) +
+  theme_classic() +
+  labs(x = "", y = "")
+```
+
+On complete data, the flexible logistics regression and random forest prediction models have equivalent calibration:
+
+- FLR intercept closer to 0 than RF (`r mean_ref$int %>% round(.,3)`, respectively);
+
+- FLR slope further from 1 than RF (`r mean_ref$slo %>% round(.,3)`, respectively).
+
+The flexible logistic regression prediction model has somewhat better discrimination than the random forest:
+
+- FLR C-index higher than RF (`r mean_ref$auc %>% round(.,3)`, respectively).
+
+
+# Simulation Results
+
+```{r results}
+# load data
+performance <- readRDS("Results/performance.RDS")
+
+# plot function
+plot_perf <- function(all_perf, metric){
+  all_perf[, c("Method", "Model", "Strategy", metric)] %>% 
+  setNames(c("Method", "Model", "Strategy", "metric")) %>% 
+  ggplot(aes(x = metric, y = Method, fill = Model)) +
+  geom_boxplot() +
+  scale_y_discrete(limits = rev(meth_ord), labels = rev(plot_lab)) +
+  scale_fill_manual(values = meth_col) +
+  theme_classic() +
+  labs(x = metric, y = "Missing data strategy")
+}
+```
+
+
+## Calibration
+
+```{r calibration}
+plot_perf(performance, "Intercept") + list(geom_vline(xintercept = 0, color = "grey", linewidth = 2))
+plot_perf(performance, "Slope") + list(geom_vline(xintercept = 1, color = "grey", linewidth = 2))
+```
+
+Aim: Intercept should be zero, slope should be one.
+
+Summary:
+
+- Best performance in terms of intercept: BOS+FLR, MDI+RF, MDI+FLR
+
+- Worst performance in terms of intercept: SDI+FLR, SS+RF (wide range), SDI+RF, BOS+RF (CMI+RF = mixed bag)
+
+- Best performance in terms of slope: BOS+FLR, CMI+FLR, MDI+RF and MDI+FLR
+
+- Terrible performance in terms of slope: SDI+FLR, SDI+RF, BOS+RF
+
+
+## AUC
+
+```{r auc, message=FALSE, warning=FALSE}
+plot_perf(performance, "AUC")
+```
+
+Aim: As close to one as possible. Method with the highest AUC has the best discrimination between patients with and without the outcome (Y).
+
+Summary:
+
+- Best performance in terms of AUC: SDI+RF (???), MDI+RF/CMI+FLR, MDI+FLR 
+
+- Worst performance in terms of AUC: SDI+FLR, CMI+RF, SDI+RF, BOS+RF 
+
+
+## MAE
+
+```{r mae, message=FALSE, warning=FALSE}
+plot_perf(performance, "MAE")
+```
+
+Aim: As close to zero as possible. Method with the lowest MAE has the best approximation of the true probability of Y.
+
+Summary:
+
+- Best performance in terms of MAE: SS+RF(???), BOS+FLR, CMI+FLR
+
+- Worst performance in terms of MAE: CMI+RF, SDI+FLR,, BOS+RF
+
+
+## RMSE
+
+```{r RMSE}
+plot_perf(performance, "RMSE")
+```
+
+Aim: As close to zero as possible. Method with the lowest RMSE has best recovered the original probability of Y.
+
+Summary:
+
+- Best performance in terms of RMSE: SDI+RF (???), MDI+BOS, MDI+FLR, CMI+FLR (BOS+FLR = mixed bag)
+
+- Worst performance in terms of RMSE: SDI+FLR, CMI+RF, SS+RF (very wide range) and BOS+RF 
+
+
+## Brier score
+
+```{r brier}
+plot_perf(performance, "Brier")
+```
+
+Aim: As close to zero as possible. Method with the lowest Brier score has best recovered the original observed Y.
+
+Summary:
+
+- Best performance in terms of Brier score: SDI+RF, MDI+RF, MDI+FLR, CMI+FLR
+
+- Worst performance in terms of Brier score: SDI+FLR, CMI+RF, SS+RF (wide range) and BOS+RF 
+
+
+
+
+
+## Full Figure
+
+```{r all, fig.width=10}
+# load data
+performance <- readRDS("Results/performance.RDS")
+
+# make wide format long
+perf_long <- performance %>% 
+  tidyr::pivot_longer(cols = everything()[-c(1, 8, 9)], names_to = "Metric", values_to = "Performance") %>% 
+  mutate(
+    Metric = factor(Metric, levels = c("Intercept", "Slope", "AUC", "MAE", "RMSE", "Brier"), labels = c("CITL", "Calibration slope", "C-statistic", "MAE", "RMSE", "Brier score"), ordered = TRUE)
+    )
+perf_long$vline <- NA
+perf_long[perf_long$Metric == "Intercept", "vline"] <- 0 
+perf_long[perf_long$Metric == "Slope", "vline"] <- 1
+
+# plot
+ggplot(perf_long, aes(y = Method, x = Performance, fill = Model)) +
+  geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
+  geom_boxplot() +
+  scale_y_discrete(limits = rev(meth_ord), labels = rev(c(miss_lab[-5], miss_lab))) +
+  facet_wrap(~Metric, scales = "free_x", nrow = 2) +
+  scale_fill_manual(values = meth_col) +
+  theme_classic()
+
+```
+
+## Summary Table
+
+```{r average}
+perf_table <- performance %>% 
+  select(-Method) %>% 
+  group_by(Model, Strategy) %>% 
+  summarise(across(everything(), mean),
+            across(everything(), round, 3))
+
+perf_table %>%
+   write.table(file = "Results/perf.csv", sep = ";", row.names = FALSE)
+
+knitr::kable(perf_table,
+                  format = "html",
+                  booktabs = TRUE,
+                  escape = FALSE,
+                  align = c("l", "l", rep("c", 5)),
+)
+```
+
