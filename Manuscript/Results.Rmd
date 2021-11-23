@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 # packages
 library(dplyr)
 library(ggplot2)
-library(patchwork)
+# library(patchwork)
 
 # figure labels and colors
 meth_ord <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")
@@ -179,20 +179,24 @@ performance <- readRDS("../Results/performance.RDS")
 perf_long <- performance %>% 
   tidyr::pivot_longer(cols = everything()[-c(1, 8, 9)], names_to = "Metric", values_to = "Performance") %>% 
   mutate(
-    Metric = factor(Metric, levels = c( "RMSE", "Brier", "MAE", "AUC", "Intercept", "Slope"), labels = c("RMSE", "Brier score", "MAE",  "C-statistic",  "CITL", "Calibration slope"), ordered = TRUE)
+    Metric = factor(Metric, levels = c( "RMSE", "Brier", "MAE", "AUC", "Intercept", "Slope"), labels = c("RMSE", "Brier score", "MAE",  "C-statistic",  "CITL", "Calibration slope"), ordered = TRUE),
+    Strategy = factor(Strategy, levels = c("CMI", "SDI", "MDI", "BOS", "SS"), labels = miss_lab, ordered = TRUE)
     )
 perf_long$vline <- NA
 perf_long[perf_long$Metric == "CITL", "vline"] <- 0 
 perf_long[perf_long$Metric == "Calibration slope", "vline"] <- 1
 
 # plot
-ggplot(perf_long, aes(y = Method, x = Performance, fill = Model)) +
-  geom_vline(aes(xintercept = vline), color = "grey", linewidth = 2) +
+perf_long %>% filter(Metric != "MAE") %>% 
+ggplot(aes(x = Performance, y = Strategy, fill = Model)) +
+  geom_vline(aes(xintercept = vline), color = "grey") +
   geom_boxplot() +
-  scale_y_discrete(limits = rev(meth_ord), labels = rev(c(miss_lab[-5], miss_lab))) +
-  facet_wrap(~Metric, scales = "free_x", nrow = 3) +
+  scale_y_discrete(limits = rev(miss_lab)) +
+  facet_wrap(Metric~Model, scales = "free", ncol = 2, strip.position = "bottom",  dir = "h", labeller = labeller(Model = c("FLR" = " ", "RF" = " "))) +
   scale_fill_manual(values = meth_col) +
-  theme_classic()
+  theme_classic() +
+  theme(strip.background = element_blank(), strip.placement = "outside", legend.position = "bottom") +
+  labs(x = "", y = "")
 
 ```
 
@@ -219,13 +223,14 @@ knitr::kable(perf_table,
 ## Calibration plots
 
 ```{r cal-plot}
-# loosely based on https://darrendahly.github.io/post/homr/
+# load data
 pred_dat <- readRDS("../Results/results.RDS")[[1]][1:1000,]
 pred_long <- tidyr::pivot_longer(pred_dat, cols = everything()[-c(1:2)])
-# quantile(calplot$Y_prob, probs = seq(.1, .9, by = .1))
-meth <- "CMI+FLR"
+# for testrun: meth <- "CMI+FLR"
+
+# loosely based on https://darrendahly.github.io/post/homr/
 plot_cali <- function(pred_dat, meth, ...){
-plot_dat <- mutate(pred_dat, bin = ntile(get(meth), 10)) %>% 
+  plot_dat <- mutate(pred_dat, bin = ntile(get(meth), 10)) %>% 
           # Bin prediction into 10ths
       group_by(bin) %>%
       mutate(n = n(), # Get ests and CIs
@@ -236,46 +241,32 @@ plot_dat <- mutate(pred_dat, bin = ntile(get(meth), 10)) %>%
              ll = bin_prob - 1.96 * se) %>%
       ungroup() 
 
-gg_cali <- plot_dat %>%
-    ggplot(aes(x = bin_pred, y = bin_prob, ymin = ll, ymax = ul)) +
-      geom_pointrange(size = 0.5, color = "black") +
-      scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.1)) +
-      scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.1)) +
-      geom_abline(color = "grey", alpha = 0.5) + # 45 degree line indicating perfect calibration
-      # geom_smooth(method = "lm", se = FALSE, linetype = "dashed", 
-      #             color = "black", formula = y~-1 + x) + 
-      #             # straight line fit through estimates
-      geom_smooth(aes(x = get(meth), y = Y_prob), 
-                  color = ifelse(grepl("FLR", meth), "#1269b0", "#81c454"), se = FALSE, method = "loess") + 
-                  # loess fit through estimates
-      #geom_density(aes(x = x), data = pred_dat %>% select(x = meth)) +
-      labs(x = "Predicted probability", y = "", title = meth_lab[which(meth_ord == meth)]) + #Observed probability
-      theme_classic() 
-
-# geom_density(data = pred_dat %>% select(x = meth), aes(x = x, y=..scaled..))
-dens <- ggplot() + 
-  geom_density(aes(x = x, y=..scaled..), linetype = "dashed", data = pred_dat %>% select(x = meth)) +
-  scale_x_continuous(limits = c(0,1), n.breaks = 11) +
-  scale_y_continuous(limits = c(0,1), n.breaks = 11) +
-  labs(x = "Predicted probability", y = "") +
-  theme_classic()
-
-gg_cali %+% dens
-
-gg_hist <- pred_dat %>% select(x = meth) %>% ggplot(aes(x = x)) +
-  geom_histogram(aes(y = ..density..), alpha = 0.5) +
-  scale_x_continuous(limits = c(0,1), n.breaks = 11) +
-  #scale_y_continuous(labels=scales::percent/1000) +
-  theme_classic() +
-  labs(x = "Predicted probability", y = "Percentage of cases")
-
-gg_cali / gg_hist
-  
+  gg_cali <- plot_dat %>%
+    ggplot() +
+    geom_density(aes(x = x, y=..scaled..), color = "white", fill = "grey", alpha = 0.25, data = pred_dat %>% select(x = meth)) +
+    geom_abline(linetype = "dashed", alpha = 0.5) +
+    geom_smooth(aes(x = get(meth), y = Y_prob),
+                    color = ifelse(grepl("FLR", meth), "#1269b0", "#81c454"), se = FALSE, method = "loess") +
+    geom_pointrange(aes(x = bin_pred, y = bin_prob, ymin = ll, ymax = ul), size = 0.25, color = "black") +
+    scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.1)) + #, sec.axis = dup_axis(name = "Density")) +
+    scale_x_continuous(limits = c(0, 0.6), breaks = seq(0, 1, by = 0.1)) +
+    labs(
+      x = "Predicted probability", 
+      y = "Actual probability", 
+      title = meth_lab[which(meth_ord == meth)]) +
+    theme_classic()
 }   
-purrr::map(meth_ord, ~plot_cali(pred_dat, .x))
+pred_plots <- purrr::map(meth_ord, ~plot_cali(pred_dat, .x))
 
 # TODO: make one fig?
 # TODO: add histogram of pred prob?
+
+# JMI-CM en SD naar supplement
+# de rest in één figuur
+
+library(patchwork)
+
+(pred_plots[[1]] + pred_plots[[5]]) / (pred_plots[[3]] + pred_plots[[7]]) / (pred_plots[[4]] + pred_plots[[8]]) / (plot_spacer() + pred_plots[[9]])
 
 ```
 

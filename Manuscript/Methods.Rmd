@@ -109,7 +109,7 @@ patt <- readRDS("../Data/missing_data_pattern.RDS")
 ggplot(patt, aes(x = name, y = as.character(row), fill = value)) +
   geom_tile(color = "black", size = 1) +
   scale_x_discrete(limits = pred_lab, expand = c(0,0), position = "top") +
-  scale_y_discrete(limits = c("3", "2", "1"), labels = rep("33% of cases",3), expand = c(0,0)) +
+  scale_y_discrete(limits = c("3", "2", "1"), labels = c("Pattern 3", "Pattern 2", "Pattern 1"), expand = c(0,0)) +
   scale_fill_manual(values = pred_col, name = "Predictor value") +
   labs(x = "", y = "") +
   theme_classic() +
