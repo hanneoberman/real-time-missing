@@ -66,7 +66,7 @@ $$
 
 ```{r}
 # load data
-performance <- readRDS("Results/performance_MNAR.RDS")
+performance <- readRDS("../Results/performance_MNAR.RDS")
 miss_lab <- c("CMI", "SDI", "MDI", "BOS", "SS")
 plot_lab <- c(miss_lab[-5], miss_lab)
 meth_ord <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")

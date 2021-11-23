@@ -21,7 +21,7 @@ n_valset <- 20000 #sample size #TODO: make this 20000
 p <- 10 #number of predictors 
 # p_missing <- c(4, 6, 8) #missing predictors (hard coded)
 m <- 51 #number of imputations #TODO: make this 51
-miss_mech <- "MNAR" #missingness mechanism
+miss_mech <- "MAR" #missingness mechanism
 
 ##################
 # define functions
@@ -47,9 +47,12 @@ define_DGM <- function(p = 10, seed = 123) {
   # missing data patterns
   pat <- matrix(1, 12, p) %>%
     data.frame() #for each missingness type and each predictor
-  pat[1:4, 7:p] <- 0 #four predictors missing
-  pat[5:8, 5:p] <- 0 #six predictors missing
-  pat[9:12, 3:p] <- 0 #eight predictors missing
+  pat[1:4, 3:10] <- 0 #four predictors missing
+  pat[5:8, 5:10] <- 0 #six predictors missing
+  pat[9:12, 7:10] <- 0 #eight predictors missing
+  # pat[1:4, 1:8] <- 0 #four predictors missing
+  # pat[5:8, 1:6] <- 0 #six predictors missing
+  # pat[9:12, 1:4] <- 0 #eight predictors missing
   pat <- cbind(Y_prob = 1, Y = 1, pat) #outcome never missing
   # output
   return(list(
@@ -147,6 +150,13 @@ fit_mod <-
           2:(n_predictors + 2 - 6),
           2:(n_predictors + 2 - 8)
         )
+      # p_obs <-
+      #   list(
+      #     2:(n_predictors + 2),
+      #     c(2, 5:(n_predictors + 2)),
+      #     c(2, 7:(n_predictors + 2)),
+      #     c(2, 9:(n_predictors + 2))
+      #   )
       # logistic model with splines
       log_mod <- purrr::map(p_obs, ~ {
         development_set[, .x] %>%
@@ -365,7 +375,7 @@ set.seed(seed)
 
 # create datasets
 sim_data <- replicate(datasets(DGM, p, n_devset, n_valset, miss_mech), n = n_sim, simplify = FALSE)
-saveRDS(sim_data, file = "Data/datasets_MNAR.RDS")
+saveRDS(sim_data, file = "../Data/datasets_mdpattern.RDS")
 
 # run analyses
 results <- map(sim_data, ~analyses(.x$devset, .x$valset, p, m, surrogate_split = FALSE))
@@ -377,7 +387,7 @@ results <- map(sim_data, ~analyses(.x$devset, .x$valset, p, m, surrogate_split =
 
 # export results 
 output <- list(DGM = DGM, results = results, seed = .Random.seed) 
-saveRDS(output, file = "Results/output_MNAR.RDS")
+saveRDS(output, file = "../Results/output_mdpattern.RDS")
 
 ##################
 # surrogate splits
