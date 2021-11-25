@@ -192,7 +192,7 @@ ggplot(aes(x = Performance, y = Strategy, fill = Model)) +
   geom_vline(aes(xintercept = vline), color = "grey") +
   geom_boxplot() +
   scale_y_discrete(limits = rev(miss_lab)) +
-  facet_wrap(Metric~Model, scales = "free", ncol = 2, strip.position = "bottom",  dir = "h", labeller = labeller(Model = c("FLR" = " ", "RF" = " "))) +
+  facet_wrap(Metric~Model, scales = "free_x", ncol = 2, strip.position = "bottom",  dir = "h", labeller = labeller(Model = c("FLR" = " ", "RF" = " "))) +
   scale_fill_manual(values = meth_col, name = "Prediction model") +
   theme_classic() +
   theme(strip.background = element_blank(), strip.placement = "outside", legend.position = "bottom") +
@@ -224,7 +224,7 @@ knitr::kable(perf_table,
 
 ```{r cal-plot}
 # load data
-pred_dat <- readRDS("../Results/results.RDS")[[1]][1:1000,]
+pred_dat <- readRDS("Results/results.RDS")[[1]][1:1000,]
 pred_long <- tidyr::pivot_longer(pred_dat, cols = everything()[-c(1:2)]) %>% 
   mutate(
     model = case_when(stringr::str_detect(name, "FLR")~"FLR", TRUE~"RF"),

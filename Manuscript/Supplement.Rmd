@@ -9,6 +9,13 @@ output: word_document
 knitr::opts_chunk$set(echo = FALSE)
 library(dplyr)
 library(ggplot2)
+
+# figure labels and colors
+meth_ord <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")
+meth_lab <- c("JMI-CM", "JMI-SD", "JMI-MD", "PS", "JMI-CM", "JMI-SD", "JMI-MD", "PS", "SS")
+meth_col <- c("#1269b0", "#81c454") %>% setNames(c("FLR", "RF"))
+miss_lab <- c("JMI-CM", "JMI-SD", "JMI-MD", "PS", "SS")
+plot_lab <- c(miss_lab[-5], miss_lab)
 ```
 
 # Methods
@@ -64,28 +71,41 @@ $$
 
 ## Performance under MNAR missingness
 
-```{r}
+```{r MNAR}
 # load data
-performance <- readRDS("../Results/performance_MNAR.RDS")
-miss_lab <- c("CMI", "SDI", "MDI", "BOS", "SS")
-plot_lab <- c(miss_lab[-5], miss_lab)
-meth_ord <- c("CMI+FLR", "SDI+FLR", "MDI+FLR", "BOS+FLR", "CMI+RF", "SDI+RF", "MDI+RF", "BOS+RF", "SS+RF")
-meth_col <- c("#1269b0", "#81c454") %>% setNames(c("FLR", "RF"))
+performance <- readRDS("Results/performance_MNAR.RDS")
 
+# plot
 # make wide format long
 perf_long <- performance %>% 
   tidyr::pivot_longer(cols = everything()[-c(1, 8, 9)], names_to = "Metric", values_to = "Performance") %>% 
   mutate(
-    Metric = factor(Metric, levels = c("Intercept", "Slope", "AUC", "MAE", "RMSE", "Brier"), labels = c("CITL", "Calibration slope", "C-statistic", "MAE", "RMSE", "Brier score"), ordered = TRUE)
+    Metric = factor(Metric, levels = c( "RMSE", "Brier", "MAE", "AUC", "Intercept", "Slope"), labels = c("RMSE", "Brier score", "MAE",  "C-statistic",  "CITL", "Calibration slope"), ordered = TRUE),
+    Strategy = factor(Strategy, levels = c("CMI", "SDI", "MDI", "BOS", "SS"), labels = miss_lab, ordered = TRUE)
     )
+perf_long$vline <- NA
+perf_long[perf_long$Metric == "CITL", "vline"] <- 0 
+perf_long[perf_long$Metric == "Calibration slope", "vline"] <- 1
 
 # plot
-ggplot(perf_long, aes(y = Method, x = Performance, fill = Model)) +
+perf_long %>% filter(Metric != "MAE") %>% 
+ggplot(aes(x = Performance, y = Strategy, fill = Model)) +
+  geom_vline(aes(xintercept = vline), color = "grey") +
   geom_boxplot() +
-  scale_y_discrete(limits = rev(meth_ord), labels = rev(c(miss_lab[-5], miss_lab))) +
-  facet_wrap(~Metric, scales = "free_x", nrow = 2) +
-  scale_fill_manual(values = meth_col) +
-  theme_classic()
+  scale_y_discrete(limits = rev(miss_lab)) +
+  facet_wrap(Metric~Model, scales = "free", ncol = 2, strip.position = "bottom",  dir = "h", labeller = labeller(Model = c("FLR" = " ", "RF" = " "))) +
+  scale_fill_manual(values = meth_col, name = "Prediction model") +
+  theme_classic() +
+  theme(strip.background = element_blank(), strip.placement = "outside", legend.position = "bottom") +
+  labs(x = "", y = "")
 
+perf_table <- performance %>% 
+  select(-Method) %>% 
+  group_by(Model, Strategy) %>% 
+  summarise(across(everything(), mean),
+            across(everything(), round, 3))
+
+perf_table %>%
+   write.table(file = "Results/perf_MNAR.csv", sep = ";", row.names = FALSE)
 ```
 
