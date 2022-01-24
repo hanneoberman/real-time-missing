@@ -36,7 +36,8 @@ auc <- purrr::map_dfr(
   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "AUC") #%>%
 mae <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{abs(.x - .i$Y_prob) %>% mean()})}) %>% 
   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "MAE")
-  
+
+ 
 # combine and save
 performance <- cali %>% 
   cbind(AUC = auc$AUC) %>% 

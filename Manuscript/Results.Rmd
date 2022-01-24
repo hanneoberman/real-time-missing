@@ -173,7 +173,7 @@ Summary:
 
 ```{r all, fig.width=10}
 # load data
-performance <- readRDS("../Results/performance.RDS")
+performance <- readRDS("Results/performance.RDS")
 
 # make wide format long
 perf_long <- performance %>% 
@@ -185,11 +185,15 @@ perf_long <- performance %>%
 perf_long$vline <- NA
 perf_long[perf_long$Metric == "CITL", "vline"] <- 0 
 perf_long[perf_long$Metric == "Calibration slope", "vline"] <- 1
+perf_long$xmin <- NA
+perf_long[perf_long$Metric == "RMSE"|perf_long$Metric == "Brier score", "xmin"] <- 0 
+perf_long[perf_long$Metric == "C-statistic", "xmin"] <- 1 
 
 # plot
 perf_long %>% filter(Metric != "MAE") %>% 
 ggplot(aes(x = Performance, y = Strategy, fill = Model)) +
-  geom_vline(aes(xintercept = vline), color = "grey") +
+  geom_vline(aes(xintercept = vline), color = "grey", linetype = "dashed") +
+  geom_vline(aes(xintercept = xmin), color = "grey", linetype = "dashed") +
   geom_boxplot() +
   scale_y_discrete(limits = rev(miss_lab)) +
   facet_wrap(Metric~Model, scales = "free_x", ncol = 2, strip.position = "bottom",  dir = "h", labeller = labeller(Model = c("FLR" = " ", "RF" = " "))) +
@@ -210,7 +214,7 @@ perf_table <- performance %>%
             across(everything(), round, 3))
 
 perf_table %>%
-   write.table(file = "../Results/perf.csv", sep = ";", row.names = FALSE)
+   write.table(file = "Results/perf.csv", sep = ";", row.names = FALSE)
 
 knitr::kable(perf_table,
                   format = "html",
@@ -218,13 +222,27 @@ knitr::kable(perf_table,
                   escape = FALSE,
                   align = c("l", "l", rep("c", 5)),
 )
+
+se_table <- performance %>% 
+  select(-Method) %>% 
+  group_by(Model, Strategy) %>% 
+  summarise(across(everything(), var),
+            across(everything(), sqrt),
+            across(everything(), round, 3),
+            across(everything(), as.character),
+            across(everything(), paste0, "(", ., ")"),
+            )
+
+se_table %>%
+   write.table(file = "Results/perf_SEs.csv", sep = ";", row.names = FALSE)
+
 ```
 
 ## Calibration plots
 
 ```{r cal-plot}
 # load data
-pred_dat <- readRDS("Results/results.RDS")[[1]][1:1000,]
+pred_dat <- readRDS("Results/results.RDS")[[1]][1:20000,]
 pred_long <- tidyr::pivot_longer(pred_dat, cols = everything()[-c(1:2)]) %>% 
   mutate(
     model = case_when(stringr::str_detect(name, "FLR")~"FLR", TRUE~"RF"),
@@ -232,34 +250,36 @@ pred_long <- tidyr::pivot_longer(pred_dat, cols = everything()[-c(1:2)]) %>%
     miss = stringr::str_remove(miss, "[+].*"),
     miss = factor(miss, levels = c("CMI", "SDI", "MDI", "BOS", "SS"), labels = miss_lab, ordered = TRUE)) 
 
-plot_dat <- pred_long %>%
-  group_by(name) %>%
-  mutate(bin = ntile(value, 10)) %>%
-  group_by(name, bin) %>%
-  mutate(
-    n = n(),
-    bin_pred = mean(value),
-    bin_prob = mean(Y_prob),
-    se = sqrt((bin_prob * (1 - bin_prob)) / n),
-    ul = bin_prob + 1.96 * se,
-    ll = bin_prob - 1.96 * se
-  ) %>%
-  ungroup() 
+# plot_dat <- pred_long %>%
+#   group_by(name) %>%
+#   mutate(bin = ntile(value, 10)) %>%
+#   group_by(name, bin) %>%
+#   mutate(
+#     n = n(),
+#     bin_pred = mean(value),
+#     bin_prob = mean(Y_prob),
+#     se = sqrt((bin_prob * (1 - bin_prob)) / n),
+#     ul = bin_prob + 1.96 * se,
+#     ll = bin_prob - 1.96 * se
+#   ) %>%
+#   ungroup() 
 
-plot_dat %>%
+pred_long %>%
   filter(name != "SDI+FLR" & name != "SDI+RF") %>% 
     ggplot() +
     geom_density(aes(x = value, y=..scaled..), color = "white", fill = "grey", alpha = 0.25) +
     geom_abline(linetype = "dashed", alpha = 0.5) +
-    geom_smooth(aes(x = value, y = Y_prob, color = model), se = FALSE, method = "loess") +
-    geom_pointrange(aes(x = bin_pred, y = bin_prob, ymin = ll, ymax = ul), size = 0.25, color = "black") +
-    scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.1)) + #, sec.axis = dup_axis(name = "Density")) +
-    scale_x_continuous(limits = c(0, 0.6), breaks = seq(0, 1, by = 0.1)) +
+    geom_smooth(aes(x = value, y = Y_prob, color = model, fill = model), se = TRUE, method = "loess") +
+    # geom_pointrange(aes(x = bin_pred, y = bin_prob, ymin = ll, ymax = ul), size = 0.25, color = "black") +
+    # scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.1)) + #, sec.axis = dup_axis(name = "Density")) +
+    scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.2)) +
+    scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.2)) +
     scale_color_manual(values = meth_col, name = "Prediction model") +
+    scale_fill_manual(values = meth_col, name = "Prediction model") +
     facet_grid(miss~model) +
     labs(
-      x = "Predicted probability", 
-      y = "Actual probability", 
+      x = "Estimated probability", 
+      y = "Observed proportion", 
       #title = meth_lab[which(meth_ord == meth)]
       ) +
     theme_classic() +
