@@ -17,7 +17,8 @@ library(ggplot2)
 
 # figure labels and colors
 pred_lab <- paste0("X", 1:10)
-pred_col <- c("#1269b0", "#7c1315") %>% setNames(c("Observed", "Missing"))
+# pred_col <- c("#1269b0", "#7c1315") %>% setNames(c("Observed", "Missing"))
+pred_col <- mice:::mdc(1:2) %>% setNames(c("Observed", "Missing"))
 ```
 
 # Data Generating Mechanism
@@ -42,7 +43,7 @@ $$
 $$
 ```{r varcov}
 # load data
-corr <- readRDS("Data/correlations.RDS")
+corr <- readRDS("../Data/correlations.RDS")
 # plot
 ggplot(corr, aes(x = pred, y = name, fill = value, label = text)) +
   geom_tile() +
@@ -76,7 +77,7 @@ With an intercept of $\beta_0 = -3$, this yields an incidence in $Y$ of ~15%.
 
 ```{r betas}
 # load data
-coef <- readRDS("Data/coefficients.RDS")
+coef <- readRDS("../Data/coefficients.RDS")
 # plot
 ggplot(coef, aes(x = pred, y = type, fill = value, label = text)) +
   geom_tile() +
@@ -88,20 +89,33 @@ ggplot(coef, aes(x = pred, y = type, fill = value, label = text)) +
   theme(legend.position = "bottom")
 ```
 
+## Distributions of Y~X
+
+```{r dist}
+# devset <- datasets[[1]]$devset
+# ggplot(devset, aes(x = X2, y = Y)) + 
+#   geom_rug(alpha = 0.1) +
+#   stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) +
+#   theme_classic()
+```
+
+
 ## Missing data pattern
 
 ```{r pat}
 # load data
-patt <- readRDS("Data/missing_data_pattern.RDS")
+patt <- readRDS("../Data/missing_data_pattern.RDS")
 # plot
 ggplot(patt, aes(x = name, y = as.character(row), fill = value)) +
-  geom_tile(color = "black") +
-  scale_x_discrete(limits = pred_lab, expand = c(0,0)) +
-  scale_y_discrete(limits = c("3", "2", "1"), labels = c("80% missing", "60% missing", "40% missing"), expand = c(0,0)) +
+  geom_tile(color = "black", size = 1) +
+  scale_x_discrete(limits = pred_lab, expand = c(0,0), position = "top") +
+  scale_y_discrete(limits = c("3", "2", "1"), labels = c("Pattern 3", "Pattern 2", "Pattern 1"), expand = c(0,0)) +
   scale_fill_manual(values = pred_col, name = "Predictor value") +
+  coord_fixed() +
   labs(x = "", y = "") +
   theme_classic() +
   theme(legend.position = "bottom")
+# saveRDS(gg, "gg_md_pattern.RDS")
 
 ```
 
