@@ -38,5 +38,8 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 
-# Output files
-*.RDS
+# Large data files
+Data/data*.RDS
+Results/results*.RDS
+Results/output*.RDS
+Results/output_hpc/*.RDS
