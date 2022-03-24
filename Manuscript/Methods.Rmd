@@ -92,11 +92,11 @@ ggplot(coef, aes(x = pred, y = type, fill = value, label = text)) +
 ## Distributions of Y~X
 
 ```{r dist}
-devset <- datasets[[1]]$devset
-ggplot(devset, aes(x = X2, y = Y)) + 
-  geom_rug(alpha = 0.1) +
-  stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) +
-  theme_classic()
+# devset <- datasets[[1]]$devset
+# ggplot(devset, aes(x = X2, y = Y)) + 
+#   geom_rug(alpha = 0.1) +
+#   stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) +
+#   theme_classic()
 ```
 
 
@@ -111,9 +111,11 @@ ggplot(patt, aes(x = name, y = as.character(row), fill = value)) +
   scale_x_discrete(limits = pred_lab, expand = c(0,0), position = "top") +
   scale_y_discrete(limits = c("3", "2", "1"), labels = c("Pattern 3", "Pattern 2", "Pattern 1"), expand = c(0,0)) +
   scale_fill_manual(values = pred_col, name = "Predictor value") +
+  coord_fixed() +
   labs(x = "", y = "") +
   theme_classic() +
   theme(legend.position = "bottom")
+# saveRDS(gg, "gg_md_pattern.RDS")
 
 ```
 

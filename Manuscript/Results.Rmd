@@ -186,14 +186,14 @@ perf_long$vline <- NA
 perf_long[perf_long$Metric == "CITL", "vline"] <- 0 
 perf_long[perf_long$Metric == "Calibration slope", "vline"] <- 1
 perf_long$xmin <- NA
-perf_long[perf_long$Metric == "RMSE"|perf_long$Metric == "Brier score", "xmin"] <- 0 
-perf_long[perf_long$Metric == "C-statistic", "xmin"] <- 1 
+# perf_long[perf_long$Metric == "RMSE"|perf_long$Metric == "Brier score", "xmin"] <- 0 
+# perf_long[perf_long$Metric == "C-statistic", "xmin"] <- 1 
 
 # plot
 perf_long %>% filter(Metric != "MAE") %>% 
 ggplot(aes(x = Performance, y = Strategy, fill = Model)) +
   geom_vline(aes(xintercept = vline), color = "grey", linetype = "dashed") +
-  geom_vline(aes(xintercept = xmin), color = "grey", linetype = "dashed") +
+  # geom_vline(aes(xintercept = xmin), color = "grey", linetype = "dashed") +
   geom_boxplot() +
   scale_y_discrete(limits = rev(miss_lab)) +
   facet_wrap(Metric~Model, scales = "free_x", ncol = 2, strip.position = "bottom",  dir = "h", labeller = labeller(Model = c("FLR" = " ", "RF" = " "))) +
@@ -201,7 +201,7 @@ ggplot(aes(x = Performance, y = Strategy, fill = Model)) +
   theme_classic() +
   theme(strip.background = element_blank(), strip.placement = "outside", legend.position = "bottom") +
   labs(x = "", y = "")
-
+# saveRDS(gg, "gg_results.RDS")
 ```
 
 ## Summary Table
@@ -284,7 +284,7 @@ pred_long %>%
       ) +
     theme_classic() +
   theme(legend.position = "bottom")
-
+# saveRDS(gg, "gg_calibration.RDS")
 
 # # loosely based on https://darrendahly.github.io/post/homr/
 # # for testrun: meth <- "CMI+FLR"
