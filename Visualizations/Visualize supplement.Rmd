@@ -73,7 +73,7 @@ $$
 
 ```{r MNAR}
 # load data
-performance <- readRDS("Results/performance_MNAR.RDS")
+performance <- readRDS("./Results/performance_MNAR.RDS")
 
 # plot
 # make wide format long
