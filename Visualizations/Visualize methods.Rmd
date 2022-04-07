@@ -43,7 +43,7 @@ $$
 $$
 ```{r varcov}
 # load data
-corr <- readRDS("../Data/correlations.RDS")
+corr <- readRDS("./Data/correlations.RDS")
 # plot
 ggplot(corr, aes(x = pred, y = name, fill = value, label = text)) +
   geom_tile() +
@@ -77,7 +77,7 @@ With an intercept of $\beta_0 = -3$, this yields an incidence in $Y$ of ~15%.
 
 ```{r betas}
 # load data
-coef <- readRDS("../Data/coefficients.RDS")
+coef <- readRDS("./Data/coefficients.RDS")
 # plot
 ggplot(coef, aes(x = pred, y = type, fill = value, label = text)) +
   geom_tile() +
