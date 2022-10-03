@@ -5,8 +5,8 @@ library(tidyverse)
 mimic_prepare <- function(D = "mimic_demo"){
 # prepare data (replace for final results)
 D <- "mimic_demo" # replace with mimic database
-admissions <- read_csv("ADMISSIONS.csv") # replace with mimic admissions
-icustays <- read_csv("ICUSTAYS.csv") # replace with mimic icustays
+admissions <- read_csv("ADMISSIONS.csv.gz") %>% janitor::clean_names() # replace with mimic admissions
+icustays <- read_csv("ICUSTAYS.csv.gz") %>% janitor::clean_names() # replace with mimic icustays
 
 hadm_icustay_ids <- inner_join(admissions, icustays, by = "hadm_id") %>%
   select(c(hadm_id, icustay_id))
@@ -19,7 +19,7 @@ dict$category %>% levels() # levels of categories to ease filtering
 # FiO2 (%)
 explain_dictionary(src = D) %>% filter(category == "blood gas") # get name
 
-fio2 <- load_concepts("fio2", D, verbose = F) %>% # load fio2
+fio2 <- load_concepts("fio2", src = D, verbose = F) %>% # load fio2
   full_join(icustays, by = "icustay_id") %>% # add icustay data for times
   group_by(icustay_id) %>%
   mutate(admission_length = difftime(intime, # calculate length of admission
