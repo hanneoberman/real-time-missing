@@ -1,11 +1,12 @@
 #function to prepare data
 mimic_prepare <- function(D = "mimic_demo"){
 # prepare data (replace for final results)
-D <- "mimic_demo" # replace with mimic database
-admissions <- read_csv("ADMISSIONS.csv") # replace with mimic admissions
-icustays <- read_csv("ICUSTAYS.csv") # replace with mimic icustays
+admissions <- read_csv("ADMISSIONS.csv.gz") %>% clean_names() # load admissions data
+icustays <- read_csv("ICUSTAYS.csv.gz") %>% clean_names() # load icustays data
 
-hadm_icustay_ids <- inner_join(admissions, icustays, by = "hadm_id") %>%
+hadm_icustay_ids <- inner_join(admissions, 
+                               icustays, 
+                               by = "hadm_id") %>%
   select(c(hadm_id, icustay_id))
 
 dict <- explain_dictionary(src = D) # concepts and description
@@ -142,11 +143,11 @@ urine <- load_concepts("urine24", D, verbose = F) %>% # load urine24
   select(c("icustay_id", "urine24")) # relevant columns
 
 # Mortality
-death <- inner_join(admissions, icustays, by = "hadm_id") %>%
+death <- full_join(admissions, icustays, by = "hadm_id") %>%
   select(c("icustay_id", hospital_expire_flag)) # 1 = death
 
 # join all data
-data <- fio2 %>%
+data <- fio2 %>% # join all data
   full_join(pao2, by = "icustay_id") %>%
   full_join(platelets, by = "icustay_id") %>%
   full_join(bilirubin, by = "icustay_id") %>%
@@ -155,7 +156,8 @@ data <- fio2 %>%
   full_join(map, by = "icustay_id") %>%
   full_join(crea, by = "icustay_id") %>%
   full_join(urine, by = "icustay_id") %>%
-  full_join(death, by = "icustay_id")
+  full_join(death, by = "icustay_id") %>%
+  as.data.frame()
 
 data
 }
