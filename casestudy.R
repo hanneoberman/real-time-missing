@@ -49,18 +49,19 @@ rf_mod <- purrr::map(train_pat, ~ {
   ranger::ranger(Y ~ ., data = .)
 })
 
-# TODO: think about number of patterns, model conv, runtime, imp train set too?, test set patterns not in train set
+# TODO: think about number of patterns, model conv, runtime, sidenote patterns because of ps method, imp train set too?, test set patterns not in train set
+# TODO: filter 20 most freq patterns
 
 # predict(mod, newdata = test, type = "response")
 
-# ## imputation methods
-# imputations <-
-#   impute_cond(
-#     vals = validation_set,
-#     dev_means = fitted_mod$mu,
-#     dev_cov = fitted_mod$sigma,
-#     m = n_imp
-#   )
+## imputation methods
+imputations <-
+  impute_cond(
+    vals = validation_set,
+    dev_means = fitted_mod$mu,
+    dev_cov = fitted_mod$sigma,
+    m = n_imp
+  )
 # # conditional imputation with logistic model
 # Y_pred_imp_log <- imputations %>% map( ~ {
 #   select(.x,-p_miss,-draw) %>%
