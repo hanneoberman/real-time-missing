@@ -55,6 +55,15 @@ train_pat <- split(train_filter, ~ pat) %>%
   purrr::map(., function(.x) {
     .x[,!apply(is.na(.x), 2, all)]
   })
+# split test data by pattern and remove completely missing columns
+test_pat <- split(test_filter, ~ pat) %>% 
+  purrr::map(., function(.x) {
+    .x[,!apply(is.na(.x), 2, all)]
+  })
+
+########################
+
+# pattern submodels
 
 # PS logistic model
 log_mod <- purrr::map(train_pat, ~ {
@@ -64,6 +73,11 @@ log_mod <- purrr::map(train_pat, ~ {
 })
 save(log_mod, file = "./Case study/mod_log.Rdata")
 
+# fit PS logistic
+log_fit <- purrr::map2(log_mod, test_pat, ~{
+  predict(.x, newdata = .y[,-c(1:2)], type = "response")
+})
+
 # PS random forest model
 rf_mod <- purrr::map(train_pat, ~ {
   ranger::ranger(
@@ -72,9 +86,21 @@ rf_mod <- purrr::map(train_pat, ~ {
 })
 save(rf_mod, file = "./Case study/mod_rf.Rdata")
 
+# fit PS rf
+rf_fit <- purrr::map2(rf_mod, test_pat, ~{
+  predict(.x, data = .y[,-c(1:2)], type = "response")
+})
+
+####################
+
+sur_mod <- party::cforest(Y ~ ., data = train_filter[, -1])
+save(sur_mod, file = "./Case study/mod_sur.Rdata")
+
+######################
+
 # TODO: think about number of patterns, model conv, runtime, sidenote patterns because of ps method, imp train set too?, test set patterns not in train set
 # TODO: filter 20 most freq patterns
-# note: the 10 most freqent patterns uncluded patterns with complete separation in the outcome (Y = 0 only), so just 5 patterns were selected
+# note: the 10 most frequent patterns included patterns with complete separation in the outcome (Y = 0 only), so just 5 patterns were selected
 
 ## imputation methods
 imputations <-
