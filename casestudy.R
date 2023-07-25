@@ -4,6 +4,7 @@
 set.seed(171)
 library(dplyr)
 library(purrr)
+library(mice)
 
 # load data
 dat <-
@@ -11,6 +12,9 @@ dat <-
     "C:/Users/4216318/surfdrive/Documents/Student-assistentschap/MIMIC Data/mimic_cleaned.RDS"
   )
 dat_clean <- cbind(Y = dat$hospital_expire_flag, dat[,-c(1, 11)])
+
+# # filter most common md patterns
+# pat <- md.pattern(dat_clean)
 
 # split train/test
 ind <-
@@ -21,21 +25,40 @@ ind <-
 train  <- dat_clean[ind,]
 test   <- dat_clean[!ind,]
 
-# run all methods except SS
-means <- colMeans(train[,-1], na.rm = TRUE)
-varcov <- cov(train[,-1], use = "pairwise.complete.obs")
-# md <- mice::md.pattern(train)
-# add md pattern to each row
+# save data
+save(train, file = "./Case study/train_clean.Rdata")
+save(test, file = "./Case study/test_clean.Rdata")
+
+# filter out less frequent md patterns in training data
 R <- is.na(train)
 nmis <- colSums(R)
 R <- matrix(R[, order(nmis)], dim(train))
 pat <- apply(R, 1, function(x)
   paste(as.numeric(x), collapse = ""))
-train_pat <-
-  split(train, ~ pat) %>% # %>% janitor::remove_empty(., which = "cols")
-  purrr::map(., function(.x) {
-    .x[,!apply(is.na(.x), 2, all)]
-  })
+freq_pat <- names(sort(table(pat), decreasing = TRUE))[1:10]
+train_filter <- train[pat %in% freq_pat, ]
+# filter out less frequent md patterns in training data
+R <- is.na(test)
+nmis <- colSums(R)
+R <- matrix(R[, order(nmis)], dim(test))
+pat <- apply(R, 1, function(x)
+  paste(as.numeric(x), collapse = ""))
+test_filter <- test[pat %in% freq_pat, ]
+
+# save data
+save(train_filter, file = "./Case study/train_filter.Rdata")
+save(test_filter, file = "./Case study/test_filter.Rdata")
+
+# train_pat <-
+#   split(train, ~ pat) %>% # %>% janitor::remove_empty(., which = "cols")
+#   purrr::map(., function(.x) {
+#     .x[,!apply(is.na(.x), 2, all)]
+#   })
+# names(train_pat)
+
+# run all methods except SS
+means <- colMeans(train[,-1], na.rm = TRUE)
+varcov <- cov(train[,-1], use = "pairwise.complete.obs")
 
 # PS logistic model
 log_mod <- purrr::map(train_pat, ~ {
