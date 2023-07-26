@@ -95,6 +95,10 @@ rf_fit <- purrr::map2(rf_mod, test_pat, ~{
 
 sur_mod <- party::cforest(Y ~ ., data = train_filter[, -1])
 save(sur_mod, file = "./Case study/mod_sur.Rdata")
+saveRDS(sur_mod, "./Case study/mod_sur.RDS")
+
+# fit surrogate split model
+sur_fit <- predict(sur_mod, newdata = test_filter[, -c(1:2)])
 
 ######################
 
