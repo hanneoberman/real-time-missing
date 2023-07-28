@@ -53,10 +53,7 @@ save(test_filter, file = "./Case study/test_filter.Rdata")
 # split training data by pattern and remove completely missing columns
 train_pat <- split(train_filter, ~ pat) 
 # split test data by pattern and remove completely missing columns
-test_pat <- split(test_filter, ~ pat) %>% 
-  purrr::map(., function(.x) {
-    .x[,!apply(is.na(.x), 2, all)]
-  })
+test_pat <- split(test_filter, ~ pat)
 
 ########################
 
@@ -115,13 +112,10 @@ save(sur_fit, file = "./Case study/fit_sur.Rdata")
 means <- colMeans(train_filter[,-c(1:2)], na.rm = TRUE)
 varcov <- cov(train_filter[,-c(1:2)], use = "pairwise.complete.obs")
 
-imputations <-
-  impute_cond(
-    vals = test_filter,
-    dev_means = means,
-    dev_cov = varcov,
-    m = 1
-  )
+imp_mean <- impute(test_pat[[2]], means, varcov, method = "norm")
+imp_draw <- impute(test_pat[[2]], means, varcov, method = "draw")
+imp_mult <- impute(test_pat[[2]], means, varcov, method = "mult", m = 10)
+
 # # conditional imputation with logistic model
 # Y_pred_imp_log <- imputations %>% map( ~ {
 #   select(.x,-p_miss,-draw) %>%
