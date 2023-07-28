@@ -169,6 +169,29 @@ ggplot(long, aes(value, truth, color = name)) +
   geom_point() + 
   geom_smooth(se = FALSE)
 
+meth <- names(predictions)[-1]
+rmse <- purrr::map_dbl(meth, function(.x){
+  sqrt(mean((predictions$truth - predictions[, .x])^2))
+}) %>% setNames(meth)
+auc <- purrr::map_dbl(meth, function(.x){
+  pROC::roc(predictions$truth, predictions[, .x]) %>% 
+    .$auc %>% 
+    as.numeric()
+}) %>% setNames(meth)
+
+# rmse <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{sqrt(mean((.x - .i$Y_prob)^2))})}) %>% 
+#   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "RMSE") #%>% 
+# brier <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{mean((.x - .i$Y_true)^2)})}) %>% 
+#   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "Brier") # %>% 
+# auc <- purrr::map_dfr(
+#   results, function(.i){
+#     purrr::map_dfc(
+#       .i[,-c(1:2)], ~{
+#         pROC::roc(.i$Y_true, .x) %>% .$auc %>% as.numeric()})}) %>%
+#   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "AUC") #%>%
+# mae <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{abs(.x - .i$Y_prob) %>% mean()})}) %>% 
+#   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "MAE")
+
 
 # # conditional imputation with logistic model
 # Y_pred_imp_log <- imputations %>% map( ~ {
