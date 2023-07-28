@@ -160,6 +160,16 @@ predictions <- data.frame(
   rf_sur = c(sur_fit)
 )
 
+save(predictions, file = "./Case study/predictions.Rdata")
+
+######
+library(ggplot2)
+long <- tidyr::pivot_longer(predictions, cols = names(predictions)[-1])
+ggplot(long, aes(value, truth, color = name)) +
+  geom_point() + 
+  geom_smooth(se = FALSE)
+
+
 # # conditional imputation with logistic model
 # Y_pred_imp_log <- imputations %>% map( ~ {
 #   select(.x,-p_miss,-draw) %>%
