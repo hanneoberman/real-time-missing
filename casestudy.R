@@ -113,12 +113,30 @@ save(sur_fit, file = "./Case study/fit_sur.Rdata")
 means <- colMeans(train_filter[,-c(1:2)], na.rm = TRUE)
 varcov <- cov(train_filter[,-c(1:2)], use = "pairwise.complete.obs")
 
-imp_mean <- impute(test_pat[[2]], means, varcov, method = "norm")
-imp_draw <- impute(test_pat[[2]], means, varcov, method = "draw")
-imp_mult <- impute(test_pat[[2]], means, varcov, method = "mult", m = 10)
+# for each md pattern
+purrr::map(test_pat, ~{
+# impute 
+imp_mean <- impute(.x, means, varcov, method = "norm")
+imp_draw <- impute(.x, means, varcov, method = "draw")
+imp_mult <- impute(.x, means, varcov, method = "mult", m = 10)
+})
 
-# pred
-a = predict(log_mod[[1]], newdata = imp_mean)
+# predict with logistic model
+log_mean <- predict(log_mod[[1]], newdata = imp_mean, type = "response")
+log_draw <- predict(log_mod[[1]], newdata = imp_draw, type = "response")
+log_mult <- purrr::map_dfr(imp_mult, ~{
+  predict(log_mod[[1]], newdata = .x, type = "response")
+}) %>% colMeans()
+
+# predict with rf
+rf_mean <- predict(rf_mod[[1]], data = imp_mean, type = "response")$predictions
+rf_draw <- predict(rf_mod[[1]], data = imp_draw, type = "response")$predictions
+rf_mult <- purrr::map_dfr(imp_mult, ~{
+  predict(rf_mod[[1]], data = .x, type = "response")$predictions %>% 
+    setNames(rownames(imp_mult[[1]]))
+}) %>% colMeans()
+
+
 
 # # conditional imputation with logistic model
 # Y_pred_imp_log <- imputations %>% map( ~ {
