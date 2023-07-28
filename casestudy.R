@@ -54,6 +54,8 @@ save(test_filter, file = "./Case study/test_filter.Rdata")
 train_pat <- split(train_filter, ~ pat) 
 # split test data by pattern and remove completely missing columns
 test_pat <- split(test_filter, ~ pat)
+# extract true Y 
+Y = do.call("rbind", test_pat)$Y
 
 ########################
 
@@ -102,7 +104,7 @@ save(sur_mod, file = "./Case study/mod_sur.Rdata")
 saveRDS(sur_mod, "./Case study/mod_sur.RDS")
 
 # fit surrogate split model
-sur_fit <- predict(sur_mod, newdata = test_filter[, -c(1:2)])
+sur_fit <- predict(sur_mod, newdata = do.call("rbind", test_pat)[, -c(1:2)])
 save(sur_fit, file = "./Case study/fit_sur.Rdata")
 
 ######################
@@ -114,29 +116,49 @@ means <- colMeans(train_filter[,-c(1:2)], na.rm = TRUE)
 varcov <- cov(train_filter[,-c(1:2)], use = "pairwise.complete.obs")
 
 # for each md pattern
-purrr::map(test_pat, ~{
-# impute 
-imp_mean <- impute(.x, means, varcov, method = "norm")
-imp_draw <- impute(.x, means, varcov, method = "draw")
-imp_mult <- impute(.x, means, varcov, method = "mult", m = 10)
+imp_mean <- purrr::map_dfr(test_pat, ~ {
+  # impute 
+  impute(.x, means, varcov, method = "norm")
 })
+
+# for each md pattern
+imp_draw <- purrr::map_dfr(test_pat, ~ {
+  # impute 
+  impute(.x, means, varcov, method = "draw")
+})
+
+# for each md pattern
+imp_mult <- purrr::map_dfr(test_pat, ~ {
+  # impute 
+  impute(.x, means, varcov, method = "mult")
+}) %>% split( ~ .m)
 
 # predict with logistic model
 log_mean <- predict(log_mod[[1]], newdata = imp_mean, type = "response")
 log_draw <- predict(log_mod[[1]], newdata = imp_draw, type = "response")
-log_mult <- purrr::map_dfr(imp_mult, ~{
-  predict(log_mod[[1]], newdata = .x, type = "response")
-}) %>% colMeans()
+log_mult <- purrr::map_dfc(imp_mult, ~{
+  data.frame(pred = predict(log_mod[[1]], newdata = .x[, -1], type = "response"))
+  }) %>% rowMeans()
 
 # predict with rf
 rf_mean <- predict(rf_mod[[1]], data = imp_mean, type = "response")$predictions
 rf_draw <- predict(rf_mod[[1]], data = imp_draw, type = "response")$predictions
-rf_mult <- purrr::map_dfr(imp_mult, ~{
-  predict(rf_mod[[1]], data = .x, type = "response")$predictions %>% 
-    setNames(rownames(imp_mult[[1]]))
-}) %>% colMeans()
+rf_mult <- purrr::map_dfc(imp_mult, ~{
+  data.frame(pred = predict(rf_mod[[1]], data = .x, type = "response")$predictions)
+}) %>% rowMeans()
 
-
+predictions <- data.frame(
+  truth = Y,
+  log_ps = stack(log_fit)$values,
+  log_mean = c(log_mean),
+  log_draw = c(log_draw),
+  log_mult = c(log_mult),
+  rf_ps = stack(log_fit)$values,
+  rf_mean = c(rf_mean),
+  rf_draw = c(rf_draw),
+  rf_mult = c(rf_mult),
+  rf_sur = c(sur_fit)
+)
 
 # # conditional imputation with logistic model
 # Y_pred_imp_log <- imputations %>% map( ~ {

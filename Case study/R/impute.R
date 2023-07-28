@@ -4,9 +4,6 @@ impute <- function(data,
                    method = NULL,
                    m = 5) {
   # process inputs
-  if (!any(is.na(data))) {
-    return(data)
-  }
   if (is.null(method)) {
     method <- "norm"
   }
@@ -15,10 +12,17 @@ impute <- function(data,
   obs <-  !miss
   if (method == "norm" | method == "draw") {
     out <- x_obs
-  }
+    if (!any(miss)) {
+      return(out)
+    }
+    }
   if (method == "mult") {
     out <- rep(list(x_obs), m)
-  }
+    if (!any(miss)) {
+      out <- cbind(.m = rep(1:m, each = nrow(x_obs)), do.call("rbind", out))
+      return(out)
+    }}
+
   
   # compute
   B <- varcov[miss, miss]
@@ -54,10 +58,11 @@ impute <- function(data,
               m, mu = as.numeric(c_mu[i,]), Sigma = c_var
             )))
     }) %>% split(~ .m)
-    out <- purrr::map(1:m, ~ {
+    full <- purrr::map(1:m, function(.x) {
       out[[.x]][, miss] <- imp[[.x]][, -1]
-      out[[.x]]
+      cbind(.m = .x, out[[.x]])
     })
+    out = do.call("rbind", full)
   }
   
   # output
