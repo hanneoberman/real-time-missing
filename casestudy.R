@@ -109,12 +109,16 @@ save(sur_fit, file = "./Case study/fit_sur.Rdata")
 
 ## imputation methods
 
+# extract means and covariances
 means <- colMeans(train_filter[,-c(1:2)], na.rm = TRUE)
 varcov <- cov(train_filter[,-c(1:2)], use = "pairwise.complete.obs")
 
 imp_mean <- impute(test_pat[[2]], means, varcov, method = "norm")
 imp_draw <- impute(test_pat[[2]], means, varcov, method = "draw")
 imp_mult <- impute(test_pat[[2]], means, varcov, method = "mult", m = 10)
+
+# pred
+a = predict(log_mod[[1]], newdata = imp_mean)
 
 # # conditional imputation with logistic model
 # Y_pred_imp_log <- imputations %>% map( ~ {
