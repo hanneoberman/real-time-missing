@@ -165,9 +165,10 @@ save(predictions, file = "./Case study/predictions.Rdata")
 ######
 library(ggplot2)
 long <- tidyr::pivot_longer(predictions, cols = names(predictions)[-1])
-ggplot(long, aes(value, truth, color = name)) +
-  geom_point() + 
-  geom_smooth(se = FALSE)
+ggplot(long, aes(value, truth, color = truth)) +
+  geom_jitter(width = 0, height = 0.05) + 
+  geom_smooth(se = FALSE) +
+  facet_wrap(~ name)
 
 meth <- names(predictions)[-1]
 rmse <- purrr::map_dbl(meth, function(.x){
