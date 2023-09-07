@@ -92,7 +92,8 @@ save(rf_mod, file = "./Case study/mod_rf.Rdata")
 rf_fit <- purrr::map2(rf_mod, test_pat, ~{
   .y[, !apply(is.na(.y), 2, all)] %>% 
     .[, -c(1, 2)] %>% 
-  predict(.x, data = ., type = "response")
+  predict(.x, data = ., type = "response") %>% 
+    .$predictions
 })
 
 ####################
@@ -153,7 +154,7 @@ predictions <- data.frame(
   log_mean = c(log_mean),
   log_draw = c(log_draw),
   log_mult = c(log_mult),
-  rf_ps = stack(log_fit)$values,
+  rf_ps = stack(rf_fit)$values,
   rf_mean = c(rf_mean),
   rf_draw = c(rf_draw),
   rf_mult = c(rf_mult),
@@ -166,7 +167,7 @@ save(predictions, file = "./Case study/predictions.Rdata")
 library(ggplot2)
 long <- tidyr::pivot_longer(predictions, cols = names(predictions)[-1])
 ggplot(long, aes(value, truth, color = truth)) +
-  geom_jitter(width = 0, height = 0.05) + 
+  geom_jitter(width = 0, height = 0.05, alpha = 0.1) + 
   geom_smooth(se = FALSE) +
   facet_wrap(~ name)
 
@@ -175,7 +176,7 @@ rmse <- purrr::map_dbl(meth, function(.x){
   sqrt(mean((predictions$truth - predictions[, .x])^2))
 }) %>% setNames(meth)
 auc <- purrr::map_dbl(meth, function(.x){
-  pROC::roc(predictions$truth, predictions[, .x]) %>% 
+  pROC::roc(predictions$truth, rep(1, 9151, 1)) %>% 
     .$auc %>% 
     as.numeric()
 }) %>% setNames(meth)
