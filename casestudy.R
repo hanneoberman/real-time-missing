@@ -181,6 +181,24 @@ auc <- purrr::map_dbl(meth, function(.x){
     as.numeric()
 }) %>% setNames(meth)
 
+auc <- purrr::map_dbl(meth, function(.x){
+  pROC::roc(predictions$truth, predictions[, .x]) %>% 
+    .$auc %>% 
+    as.numeric()
+}) %>% setNames(meth)
+
+brier <- purrr::map_dbl(meth, function(.x){
+ mean((predictions$truth - predictions[, .x])^2)
+}) %>% setNames(meth)
+
+mae <- purrr::map_dbl(meth, function(.x){
+  mean(abs(predictions$truth - predictions[, .x]))
+}) %>% setNames(meth)
+
+cali <- purrr::map_dbl(meth, function(.x){
+  lm(predictions[,.x] ~ predictions$truth)$coefficients %>% setNames(c("Intercept", "Slope"))
+}) %>% cbind(meth)
+
 # rmse <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{sqrt(mean((.x - .i$Y_prob)^2))})}) %>% 
 #   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "RMSE") #%>% 
 # brier <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{mean((.x - .i$Y_true)^2)})}) %>% 
@@ -193,6 +211,9 @@ auc <- purrr::map_dbl(meth, function(.x){
 #   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "AUC") #%>%
 # mae <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{abs(.x - .i$Y_prob) %>% mean()})}) %>% 
 #   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "MAE")
+#cali <- purrr::map_dfr(results, function(.i){
+#purrr::map_dfr(meth_lab, ~{lm(.i$Y_prob ~ .i[ , .x])$coefficients %>% setNames(c("Intercept", "Slope"))}) %>% cbind(Method = meth_lab, .)
+#}) 
 
 
 # # conditional imputation with logistic model
