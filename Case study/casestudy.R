@@ -5,6 +5,7 @@ set.seed(171)
 library(dplyr)
 library(purrr)
 library(mice)
+library(ggplot2)
 
 # load data
 dat <-
@@ -164,7 +165,7 @@ predictions <- data.frame(
 save(predictions, file = "./Case study/predictions.Rdata")
 
 ######
-library(ggplot2)
+load("./Case study/predictions.Rdata")
 long <- tidyr::pivot_longer(predictions, cols = names(predictions)[-1])
 ggplot(long, aes(value, truth, color = truth)) +
   geom_jitter(width = 0, height = 0.05, alpha = 0.1) + 
@@ -175,11 +176,27 @@ meth <- names(predictions)[-1]
 rmse <- purrr::map_dbl(meth, function(.x){
   sqrt(mean((predictions$truth - predictions[, .x])^2))
 }) %>% setNames(meth)
+
 auc <- purrr::map_dbl(meth, function(.x){
-  pROC::roc(predictions$truth, rep(1, 9151, 1)) %>% 
+  pROC::roc(predictions$truth, predictions[, .x]) %>% 
     .$auc %>% 
     as.numeric()
 }) %>% setNames(meth)
+
+brier <- purrr::map_dbl(meth, function(.x){
+ mean((predictions$truth - predictions[, .x])^2)
+}) %>% setNames(meth)
+
+mae <- purrr::map_dbl(meth, function(.x){
+  mean(abs(predictions$truth - predictions[, .x]))
+}) %>% setNames(meth)
+
+cali <- purrr::map_dfr(meth, function(.x){
+  lm(predictions[,.x] ~ predictions$truth)$coefficients %>% setNames(c("Intercept", "Slope"))
+}) %>% cbind(meth)
+
+res <- cbind(rmse, brier, auc, cali) %>% 
+  as.data.frame()
 
 # rmse <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{sqrt(mean((.x - .i$Y_prob)^2))})}) %>% 
 #   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "RMSE") #%>% 
@@ -193,6 +210,9 @@ auc <- purrr::map_dbl(meth, function(.x){
 #   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "AUC") #%>%
 # mae <- purrr::map_dfr(results, function(.i){purrr::map_dfc(.i[,-c(1:2)], ~{abs(.x - .i$Y_prob) %>% mean()})}) %>% 
 #   tidyr::pivot_longer(cols = everything(), names_to = "Method", values_to = "MAE")
+#cali <- purrr::map_dfr(results, function(.i){
+#purrr::map_dfr(meth_lab, ~{lm(.i$Y_prob ~ .i[ , .x])$coefficients %>% setNames(c("Intercept", "Slope"))}) %>% cbind(Method = meth_lab, .)
+#}) 
 
 
 # # conditional imputation with logistic model
