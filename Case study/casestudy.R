@@ -216,3 +216,7 @@ auc <- purrr::map_dbl(meth, function(.x){
 # TODO: filter 20 most freq patterns
 # note: the 10 most frequent patterns included patterns with complete separation in the outcome (Y = 0 only), so just 5 patterns were selected
 
+#####
+
+# md_plot + scale_fill_manual(values=c("#1269b0", "#7c1315"))
+
