@@ -38,10 +38,19 @@ mae <- purrr::map_dbl(meth, function(.x){
 
 cali <- purrr::map_dfr(meth, function(.x){
   lm(predictions[,.x] ~ predictions$truth)$coefficients %>% setNames(c("intercept", "slope"))
-}) %>% cbind(meth, .)
+}) %>% cbind(meth)
 
-res <- cbind(cali, rmse, brier, auc) %>% 
+res <- cbind(
+  Method = meth, 
+  RMSE = rmse, 
+  Brier = brier, 
+  `C-index` = auc, 
+  CITL = cali$intercept, 
+  Slope = cali$slope) %>% 
   as.data.frame()
+
+save(res, file = "../CaseStudy/Results/resultstable.Rdata")
+write.csv(res, file = "../CaseStudy/Results/resultstable.csv", row.names = FALSE)
 
 # with logistic model, the pattern submodel approach works best
 # with rf, the pattern submodel and surrogate split methods both perform well
