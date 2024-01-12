@@ -37,8 +37,18 @@ mae <- purrr::map_dbl(meth, function(.x){
 }) %>% setNames(meth)
 
 cali <- purrr::map_dfr(meth, function(.x){
-  lm(predictions[,.x] ~ predictions$truth)$coefficients %>% setNames(c("Intercept", "Slope"))
-}) %>% cbind(meth)
+  lm(predictions[,.x] ~ predictions$truth)$coefficients %>% setNames(c("intercept", "slope"))
+}) %>% cbind(meth, .)
 
-res <- cbind(rmse, brier, auc, cali) %>% 
+res <- cbind(cali, rmse, brier, auc) %>% 
   as.data.frame()
+
+# with logistic model, the pattern submodel approach works best
+# with rf, the pattern submodel and surrogate split methods both perform well
+# imputation methods perform less good on the real-world data -> distributional assumptions/MNAR?
+# within the imp methods, the random draw from the distribution clearly underperforms compared to regression imp and multiple imp
+# these results do not show a clear superiority for multiple imputation (link to other research!!)
+# overall, the method that performs best on real-world data is surrogate splitting
+# this method also has advantages in explainability, and does not require the miss mech to be equal across datasets
+# a small disadvantage is that the method is very slow to train, but with increasing computational power, that shouldn't be a problem
+

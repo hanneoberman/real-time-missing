@@ -100,7 +100,7 @@ predictions <- data.frame(
   rf_ps = stack(rf_fit)$values,
   rf_mean = c(rf_mean),
   rf_draw = c(rf_draw),
-  rf_mult = c(rf_mult)#,
+  rf_mult = c(rf_mult),
   rf_sur = c(sur_fit)
 )
 
