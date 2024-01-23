@@ -24,7 +24,7 @@ results <- purrr::map_dfr(meth, ~{
 }) %>% cbind(method = meth, .)
 
 save(results, file = "../CaseStudy/Results/results.Rdata")
-write.csv(results, file = "../CaseStudy/Results/results.csv")
+write.csv(results, file = "../CaseStudy/Results/results.csv", row.names = FALSE)
 
 # with logistic model, the pattern submodel approach works best
 # with rf, the pattern submodel and surrogate split methods both perform well
@@ -44,3 +44,13 @@ purrr::map_dfr(meth, ~{
   calculate_metrics(cc$truth, cc[, .x]) 
 }) %>% cbind(method = meth, .)
 ## in the complete cases, sur method performs the worst of the rf models
+
+# same but for each pattern separately
+results_per_pattern <- purrr::map_dfr(split(predictions, ~pattern), function(.x){
+  purrr::map_dfr(meth, function(.y){
+  calculate_metrics(.x$truth, .x[, .y]) 
+}) %>% cbind(method = meth, .)
+}) %>% cbind(pattern = rep(unique(predictions$pattern), each = 9), .)
+save(results_per_pattern, file = "../CaseStudy/Results/results_per_pattern.Rdata")
+write.csv(results_per_pattern, file = "../CaseStudy/Results/results_per_pattern.csv", row.names = FALSE)
+# the more missingness, the better sur split works!

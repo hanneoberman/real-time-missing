@@ -1,9 +1,16 @@
 # utils function to compute performance measures
 calculate_metrics <- function(Y_obs, Y_pred) {
+  # check if true outcome has 2 levels
+  Y_levels <- length(unique(Y_obs))
+  
+  # compute performance
   rmse <- sqrt(mean((Y_obs - Y_pred)^2))
-  auc <- pROC::roc(Y_obs, Y_pred) %>% 
+  auc <- ifelse(
+    Y_levels < 2, 
+    NA, 
+    pROC::roc(Y_obs, Y_pred) %>% 
     .$auc %>% 
-    as.numeric()
+    as.numeric())
   brier <- mean((Y_obs - Y_pred)^2)
   mae <-   mean(abs(Y_obs - Y_pred))
   cali <- lm(Y_pred ~ Y_obs)$coefficients

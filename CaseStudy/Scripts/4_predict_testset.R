@@ -104,7 +104,8 @@ predictions <- data.frame(
   rf_mean = c(rf_mean),
   rf_draw = c(rf_draw),
   rf_mult = c(rf_mult),
-  rf_sur = c(sur_fit)
+  rf_sur = c(sur_fit),
+  Y_prevalence = mean(Y)
 )
 
 save(predictions, file = "../CaseStudy/Results/predictions.Rdata")
