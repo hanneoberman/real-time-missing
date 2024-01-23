@@ -6,14 +6,16 @@ library(dplyr)
 library(purrr)
 library(mice)
 library(ggplot2)
-source("../CaseStudy/Functions/0_impute.R")
+library(ranger)
+source("../CaseStudy/Scripts/0_imputation_function.R")
 
 # load test set data
 load("../CaseStudy/Data/test_filter.Rdata")
 # split test data by pattern and remove completely missing columns
-test_pat <- split(test_filter, ~ pat)
-# extract true Y 
-Y = do.call("rbind", test_pat)$Y
+test_pat <- split(test_filter, ~ pat, drop = TRUE)
+# extract true Y
+Y <- do.call("rbind", test_pat)$Y
+pats <- do.call("rbind", test_pat)$pat
 
 #####################
 
@@ -92,6 +94,7 @@ rf_mult <- purrr::map_dfc(imp_mult, ~{
 
 # combine results
 predictions <- data.frame(
+  pattern = pats,
   truth = Y,
   log_ps = stack(log_fit)$values,
   log_mean = c(log_mean),
@@ -104,4 +107,4 @@ predictions <- data.frame(
   rf_sur = c(sur_fit)
 )
 
-save(predictions, file = "../CaseStudy/Data/predictions.Rdata")
+save(predictions, file = "../CaseStudy/Results/predictions.Rdata")

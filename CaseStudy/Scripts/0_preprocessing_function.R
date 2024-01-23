@@ -1,4 +1,4 @@
-#function to prepare data
+# utils function to prepare case study data
 mimic_prepare <- function(D = "mimic_demo"){
 # prepare data (replace for final results)
 admissions <- read_csv("ADMISSIONS.csv.gz") %>% clean_names() # load admissions data
