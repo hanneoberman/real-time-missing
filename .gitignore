@@ -43,3 +43,9 @@ Data/data*.RDS
 Results/results*.RDS
 Results/output*.RDS
 Results/output_hpc/*.RDS
+CaseStudy/casestudyresults.Rdata
+CaseStudy/mod_sur.Rdata
+CaseStudy/mod_sur.RDS
+
+# MIMIC data
+CaseStudy/Data
