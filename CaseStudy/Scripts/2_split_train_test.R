@@ -60,6 +60,9 @@ test_filter <- cbind(pat, test) %>% .[.$pat %in% pat_filt, ]
 save(train_filter, file = "../CaseStudy/Data/train_filter.Rdata")
 save(test_filter, file = "../CaseStudy/Data/test_filter.Rdata")
 
+# visualize md patterns
+ggmice::plot_pattern(train_filter)
+
 # ########################
 # 
 # # pattern submodels

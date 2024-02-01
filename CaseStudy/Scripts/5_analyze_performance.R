@@ -23,8 +23,24 @@ results <- purrr::map_dfr(meth, ~{
   calculate_metrics(predictions$truth, predictions[, .x]) 
 }) %>% cbind(method = meth, .)
 
-save(results, file = "../CaseStudy/Results/results.Rdata")
-write.csv(results, file = "../CaseStudy/Results/results.csv", row.names = FALSE)
+ggplot(results, aes(x =  method, y = CITL)) +
+  geom_point() +
+  theme_classic()
+ggplot(results, aes(x =  method, y = slope)) +
+  geom_point() +
+  theme_classic()
+ggplot(results, aes(x =  method, y = rmse)) +
+  geom_point() +
+  theme_classic()
+ggplot(results, aes(x =  method, y = brier)) +
+  geom_point() +
+  theme_classic()
+ggplot(results, aes(x =  method, y = auc)) +
+  geom_point() +
+  theme_classic()
+
+# save(results, file = "../CaseStudy/Results/results.Rdata")
+# write.csv(results, file = "../CaseStudy/Results/results.csv", row.names = FALSE)
 
 # with logistic model, the pattern submodel approach works best
 # with rf, the pattern submodel and surrogate split methods both perform well
@@ -50,7 +66,38 @@ results_per_pattern <- purrr::map_dfr(split(predictions, ~pattern), function(.x)
   purrr::map_dfr(meth, function(.y){
   calculate_metrics(.x$truth, .x[, .y]) 
 }) %>% cbind(method = meth, .)
-}) %>% cbind(pattern = rep(unique(predictions$pattern), each = 9), .)
-save(results_per_pattern, file = "../CaseStudy/Results/results_per_pattern.Rdata")
-write.csv(results_per_pattern, file = "../CaseStudy/Results/results_per_pattern.csv", row.names = FALSE)
+}) %>% cbind(pattern = rep(unique(predictions$pattern), each = 9), .) 
+
+# save(results_per_pattern, file = "../CaseStudy/Results/results_per_pattern.Rdata")
+# write.csv(results_per_pattern, file = "../CaseStudy/Results/results_per_pattern.csv", row.names = FALSE)
 # the more missingness, the better sur split works!
+
+ggplot(results_per_pattern, aes(x =  method, y = CITL, color = pattern, group = pattern)) +
+  geom_point() +
+  geom_line(linetype = "dashed", alpha = 0.2) +
+  theme_classic()
+ggplot(results_per_pattern, aes(x =  method, y = slope)) +
+  geom_point() +
+  theme_classic()
+ggplot(results_per_pattern, aes(x =  method, y = rmse)) +
+  geom_point() +
+  theme_classic()
+ggplot(results_per_pattern, aes(x =  method, y = brier)) +
+  geom_point() +
+  theme_classic()
+ggplot(results_per_pattern, aes(x =  method, y = auc)) +
+  geom_point() +
+  theme_classic()
+
+# convert to missingness proportion
+mis_prop <- results_per_pattern$pattern %>% 
+  strsplit("") %>% 
+  purrr::map_dbl(., ~{mean(as.numeric(.x))})
+mod_type <- stringr::str_detect(results_per_pattern$method, "log")
+results_per_pattern <- cbind(mis_prop, results_per_pattern)  
+ggplot(results_per_pattern, aes(x = mis_prop, y = rmse, color = method, group = method)) +
+  geom_point() +
+  geom_line(linetype = "dashed", alpha = 0.5) +
+  theme_classic()
+
+             
