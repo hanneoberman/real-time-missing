@@ -10,14 +10,38 @@ source("../CaseStudy/Scripts/0_metrics_function.R")
 
 #####################
 
+# calibration plot
 load("../CaseStudy/Results/predictions.Rdata")
-long <- tidyr::pivot_longer(predictions, cols = names(predictions)[-c(1,2)])
-ggplot(long, aes(value, truth, color = as.factor(truth))) +
-  geom_jitter(width = 0, height = 0.05, alpha = 0.1) + 
-  geom_smooth(se = FALSE, color = "black") +
-  facet_wrap(~ name) +
+long <-
+  tidyr::pivot_longer(
+    predictions,
+    cols = names(predictions)[-c(1, 2)],
+    names_to = "method",
+    values_to = "prediction"
+  ) |> 
+  mutate(
+       model = case_when(
+         stringr::str_detect(method, "log")~"FLR", 
+         TRUE~"RF"),
+       strategy = case_when(
+         stringr::str_detect(method, "mean")~"CMI",
+         stringr::str_detect(method, "draw")~"SDI",
+         stringr::str_detect(method, "mult")~"MDI",
+         stringr::str_detect(method, "ps")~"BOS",
+         TRUE~"SS"),
+       strategy = factor(strategy, levels = c("CMI", "SDI", "MDI", "BOS", "SS"), ordered = TRUE)
+       )
+meth_col <- c("#1269b0", "#81c454") %>% setNames(c("FLR", "RF"))
+ggplot(long, aes(prediction, truth, color = model)) +
+  # geom_jitter(width = 0, height = 0.05, alpha = 0.01) + 
+  geom_smooth(method = "gam", formula = y ~s(x, bs = "cs")) +
+  geom_abline(slope = 1, intercept = 0, color = "black", linetype = "dashed") +
+  facet_grid(strategy~model) +
+  scale_color_manual(values = meth_col, guide = "none") +
+  lims(x = c(0,1), y = c(0,1)) +
   theme_classic()
 
+# performance measures
 meth <- names(predictions)[-c(1,2)]
 results <- purrr::map_dfr(meth, ~{
   calculate_metrics(predictions$truth, predictions[, .x]) 
