@@ -31,7 +31,7 @@ On the complete development set data, we observe the following performance of fl
 
 ```{r reference}
 # load data
-ref_perf <- readRDS("../Results/reference_performance.RDS")
+ref_perf <- readRDS("../SimulationStudy/Results/reference_performance.RDS")
 
 # table
 mean_ref <- ref_perf %>% 
@@ -70,7 +70,7 @@ The flexible logistic regression prediction model has somewhat better discrimina
 
 ```{r results}
 # load data
-performance <- readRDS("../Results/performance.RDS")
+performance <- readRDS("../SimulationStudy/Results/performance.RDS")
 
 # plot function
 plot_perf <- function(all_perf, metric){
@@ -173,7 +173,7 @@ Summary:
 
 ```{r all, fig.width=10}
 # load data
-performance <- readRDS("Results/performance.RDS")
+performance <- readRDS("../simulationStudy/Results/performance.RDS")
 
 # make wide format long
 perf_long <- performance %>% 
